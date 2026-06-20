@@ -59,9 +59,11 @@ function initDB() {
     };
     request.onsuccess = function(e) {
         db = e.target.result;
-        loadInitialSettings();
-        requestNotificationPermission();
-        startDailyReminderCheck();
+        cleanupCorruptedReminders(() => {
+            loadInitialSettings();
+            requestNotificationPermission();
+            startDailyReminderCheck();
+        });
     };
     request.onerror = function(e) {
         console.error("Lỗi mở IndexedDB:", e.target.error);
@@ -339,12 +341,20 @@ function renderPieChart(canvasId, labels, dataset, customColors = null) {
                     display: true,
                     position: 'top',
                     labels: {
-                        color: function(context) {
-                            const bgColors = context.chart.data.datasets[0].backgroundColor;
-                            return bgColors[context.index] || '#ffffff';
-                        },
                         font: { size: 13, weight: 'bold' },
-                        padding: 12
+                        padding: 12,
+                        // generateLabels được ghi đè trực tiếp để gán màu chữ legend = đúng màu của
+                        // từng phần biểu đồ (fontColor mỗi item), tránh phụ thuộc vào callback "color"
+                        // mặc định (có thể bị nhầm thành trắng/nhạt trên nền sáng ở light mode).
+                        generateLabels: function(chart) {
+                            const original = Chart.overrides.pie.plugins.legend.labels.generateLabels(chart);
+                            const bgColors = chart.data.datasets[0].backgroundColor;
+                            original.forEach((item, i) => {
+                                item.fontColor = getReadableLegendColor(bgColors[i]);
+                                item.strokeStyle = bgColors[i];
+                            });
+                            return original;
+                        }
                     }
                 },
                 datalabels: {
@@ -374,6 +384,14 @@ function renderPieChart(canvasId, labels, dataset, customColors = null) {
         }
     });
 } // end function renderPieChart
+
+// Trả về màu chữ legend dựa trên màu nền của slice, đảm bảo luôn đọc được trên cả light/dark mode.
+// Nếu màu slice quá sáng gần với màu nền card sáng (light mode), giữ nguyên màu slice vì nó vẫn
+// có đủ độ tương phản trên nền card (trắng/xám nhạt) lẫn nền tối - màu slice luôn bão hòa, không
+// phải trắng/đen nên không bao giờ trùng màu nền ở cả 2 mode.
+function getReadableLegendColor(hexColor) {
+    return hexColor || (document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#333333');
+} // end function getReadableLegendColor
 
 function renderChartsAndStats() {
     getAllTransactions(data => {
@@ -806,6 +824,79 @@ function closeModal() {
 //   A.NỘI DUNG NHẮC | B.TẦN SUẤT | C.NGÀY BẮT ĐẦU | D.TRẠNG THÁI | E.NGÀY NHẮC TIẾP THEO | F.LẦN NHẮC CUỐI
 // Với CUSTOM, cột TẦN SUẤT được mã hóa thành "CUSTOM:<everyValue>:<everyUnit>" (ví dụ "CUSTOM:2:WEEKS")
 // để không cần thêm cột riêng, và được tách lại khi đọc dữ liệu về app.
+
+const VALID_REMINDER_FREQUENCIES = ["ONCE", "DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
+
+// Dọn dẹp các record reminder bị hỏng còn sót lại trong IndexedDB từ các phiên bản code cũ
+// (ví dụ: "content" rỗng/không hợp lệ, "frequency" không nằm trong danh sách hợp lệ, hoặc
+// "startDate"/"nextReminderDate" không phải dạng ngày hợp lệ). Hàm này CHỈ xóa trong object
+// store "reminders", không đụng đến "transactions" hay dữ liệu family lưu trong "settings".
+// Chạy 1 lần ngay sau khi mở IndexedDB, trước khi giao diện render danh sách nhắc hẹn.
+function cleanupCorruptedReminders(callback) {
+    if (!db || !db.objectStoreNames.contains("reminders")) {
+        if (callback) callback();
+        return;
+    }
+
+    const tx = db.transaction("reminders", "readwrite");
+    const store = tx.objectStore("reminders");
+    const request = store.getAll();
+
+    request.onsuccess = function(e) {
+        const list = e.target.result || [];
+        let removedCount = 0;
+
+        list.forEach(r => {
+            if (isCorruptedReminder(r)) {
+                store.delete(r.id);
+                removedCount++;
+            }
+        });
+
+        tx.oncomplete = function() {
+            if (removedCount > 0) {
+                console.log(`Đã tự động xóa ${removedCount} reminder bị hỏng (dữ liệu cũ không đúng cấu trúc).`);
+            }
+            if (callback) callback();
+        };
+        tx.onerror = function() {
+            if (callback) callback();
+        };
+    };
+
+    request.onerror = function(e) {
+        console.error("Lỗi đọc reminders khi dọn dẹp:", e.target.error);
+        if (callback) callback();
+    };
+} // end function cleanupCorruptedReminders
+
+// Kiểm tra 1 reminder record có hợp lệ hay không, theo đúng cấu trúc dữ liệu hiện tại.
+function isCorruptedReminder(r) {
+    if (!r || typeof r !== 'object') return true;
+
+    // content phải là chuỗi có nội dung thật, không phải rỗng/undefined
+    if (!r.content || typeof r.content !== 'string' || !r.content.trim()) return true;
+
+    // frequency phải nằm trong danh sách hợp lệ (không lệch cột thành "MONTHLY"/"WEEKLY" do bug cũ
+    // hoặc giá trị khác như "ENABLED"/"DISABLED" bị gán nhầm field)
+    if (!VALID_REMINDER_FREQUENCIES.includes(r.frequency)) return true;
+
+    // startDate phải là chuỗi ngày hợp lệ dạng yyyy-MM-dd (không phải "ENABLED" hay datetime ISO lệch cột)
+    if (!isValidDateOnlyString(r.startDate)) return true;
+
+    // Nếu có nextReminderDate thì cũng phải là ngày hợp lệ (không phải chuỗi ISO datetime lệch cột)
+    if (r.nextReminderDate && !isValidDateOnlyString(r.nextReminderDate)) return true;
+
+    return false;
+} // end function isCorruptedReminder
+
+// Kiểm tra chuỗi có đúng định dạng ngày yyyy-MM-dd và là ngày hợp lệ không
+function isValidDateOnlyString(str) {
+    if (!str || typeof str !== 'string') return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+    const d = new Date(str);
+    return !isNaN(d.getTime());
+} // end function isValidDateOnlyString
 
 function initReminderDateOptions() {
     const dSel = document.getElementById("rem-day");
