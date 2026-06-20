@@ -10,9 +10,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 </head>
 <body>
-
+    <!-- HEADER -->
     <div class="header" id="app-title">💰 TÔI 💰</div>
 
+    <!-- TAB CHI -->
     <div id="tab-chi" class="tab-content active">
         <div class="card">
             <h3>Nhập Khoản Chi</h3>
@@ -65,7 +66,9 @@
             <div id="expense-history-container">Đang tải lịch sử chi...</div>
         </div>
     </div>
+    <!-- end TAB CHI -->
 
+    <!-- TAB THU -->
     <div id="tab-thu" class="tab-content">
         <div class="card">
             <h3>Nhập Khoản Thu</h3>
@@ -98,7 +101,9 @@
             <div id="income-history-container">Đang tải lịch sử thu...</div>
         </div>
     </div>
+    <!-- end TAB THU -->
 
+    <!-- TAB THỐNG KÊ -->
     <div id="tab-thongke" class="tab-content">
         <div class="card">
             <h3>Section 1: Cảnh Báo Vượt Hạn Mức (So với tháng trước)</h3>
@@ -141,7 +146,9 @@
             </div>
         </div>
     </div>
+    <!-- end TAB THỐNG KÊ -->
 
+    <!-- TAB FAMILY -->
     <div id="tab-family" class="tab-content">
         <div id="family-auth-view" class="card" style="text-align: center; padding: 40px 20px;">
             <div style="font-size: 48px; margin-bottom: 15px;">🔒</div>
@@ -160,7 +167,9 @@
             </div>
         </div>
     </div>
+    <!-- end TAB FAMILY -->
 
+    <!-- TAB NHẮC HẸN -->
     <div id="tab-nhachen" class="tab-content">
         <div class="card">
             <h3>Thiết Lập Nhắc Hẹn</h3>
@@ -180,10 +189,11 @@
                 <div class="form-group">
                     <label>Tần suất nhắc hẹn</label>
                     <select id="rem-frequency" class="form-control">
-                        <option value="DAILY">DAILY</option>
-                        <option value="WEEKLY">WEEKLY</option>
-                        <option value="MONTHLY">MONTHLY</option>
-                        <option value="CUSTOM">CUSTOM</option>
+                        <option value="ONCE">Một lần</option>
+                        <option value="DAILY">Hàng ngày</option>
+                        <option value="WEEKLY">Hàng tuần</option>
+                        <option value="MONTHLY">Hàng tháng</option>
+                        <option value="CUSTOM">Tùy chỉnh</option>
                     </select>
                 </div>
                 <div id="custom-reminder-fields" style="display: none; border-left: 3px solid var(--theme-color); padding-left: 12px; margin-bottom: 15px;">
@@ -194,9 +204,9 @@
                     <div class="form-group">
                         <label>Đơn vị thời gian</label>
                         <select id="rem-every-unit" class="form-control">
-                            <option value="DAYS">DAYS</option>
-                            <option value="WEEKS">WEEKS</option>
-                            <option value="MONTHS">MONTHS</option>
+                            <option value="DAYS">Ngày</option>
+                            <option value="WEEKS">Tuần</option>
+                            <option value="MONTHS">Tháng</option>
                         </select>
                     </div>
                 </div>
@@ -208,16 +218,9 @@
             <div id="reminder-list-container">Đang tải danh sách nhắc hẹn...</div>
         </div>
     </div>
+    <!-- end TAB NHẮC HẸN -->
 
-    <div id="familyModal" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" id="btn-close-modal">&times;</button>
-            <h3 id="modal-member-title" style="margin-top: 0; margin-bottom: 15px; color: var(--theme-color);">Thông tin lý lịch</h3>
-            <div id="modal-member-details" style="margin-bottom: 20px;"></div>
-            <button id="btn-copy-all" class="btn">📋 Sao chép toàn bộ thông tin</button>
-        </div>
-    </div>
-
+    <!-- TAB SETTINGS -->
     <div id="tab-settings" class="tab-content">
         <div class="card">
             <h3>Thay Đổi Giao Diện</h3>
@@ -243,7 +246,20 @@
             <button class="btn" id="btn-reset-app" style="background-color: #F44336 !important; color: #fff !important; width: 100%; margin-top: 15px;">🗑️ Xóa sạch dữ liệu & Đặt lại App</button>
         </div>
     </div>
+    <!-- end TAB SETTINGS -->
 
+    <!-- FAMILY MODAL -->
+    <div id="familyModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-close-modal">&times;</button>
+            <h3 id="modal-member-title" style="margin-top: 0; margin-bottom: 15px; color: var(--theme-color);">Thông tin lý lịch</h3>
+            <div id="modal-member-details" style="margin-bottom: 20px;"></div>
+            <button id="btn-copy-all" class="btn">📋 Sao chép toàn bộ thông tin</button>
+        </div>
+    </div>
+    <!-- end FAMILY MODAL -->
+
+    <!-- NAVIGATION TABS -->
     <div class="nav-tabs" id="main-nav-tabs">
         <button class="tab-btn active" data-tab="chi">Chi</button>
         <button class="tab-btn" data-tab="thu">Thu</button>
@@ -252,6 +268,7 @@
         <button class="tab-btn" data-tab="nhachen">Nhắc Hẹn</button>
         <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
+    <!-- end NAVIGATION TABS -->
 
     <button class="scroll-top" id="scrollTopBtn">↑</button>
 

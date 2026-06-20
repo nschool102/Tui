@@ -1,3 +1,6 @@
+// =========================================================================
+// CẤU HÌNH APP
+// =========================================================================
 const CONFIG = {
     googleSheetId: '19Tsmkh53nPAqhTYy2DU5dSfYXJRAwyc9VI0VaeM3LMw', 
     apiEndpoint: 'https://script.google.com/macros/s/AKfycbxC72RzXFo9yG8iP9FRgyjY7sYhH_ffHxR1qkK0u5GbwFnmODsZ0E2_M_Hl38328S3T/exec' 
@@ -31,30 +34,41 @@ let charts = {};
 let localFamilyData = []; 
 let localReminderData = [];
 let isSyncing = false;
+let notificationCheckInterval = null;
 
-// ==========================================================================
-// KẾT NỐI INDEXEDDB
-// ==========================================================================
+// =========================================================================
+// KHỞI TẠO INDEXEDDB
+// =========================================================================
 function initDB() {
     const request = indexedDB.open("FamilyFinancePWA", 3);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
-        if (!db.objectStoreNames.contains("transactions")) db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
-        if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "key" });
-        if (!db.objectStoreNames.contains("reminders")) db.createObjectStore("reminders", { keyPath: "id", autoIncrement: true });
+        if (!db.objectStoreNames.contains("transactions")) {
+            db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains("settings")) {
+            db.createObjectStore("settings", { keyPath: "key" });
+        }
+        if (!db.objectStoreNames.contains("reminders")) {
+            db.createObjectStore("reminders", { keyPath: "id", autoIncrement: true });
+        }
     };
     request.onsuccess = function(e) {
         db = e.target.result;
         loadInitialSettings();
         requestNotificationPermission();
+        startDailyReminderCheck();
     };
-}
+    request.onerror = function(e) {
+        console.error("Lỗi mở IndexedDB:", e.target.error);
+    };
+} // end function initDB
 
-// ==========================================================================
-// KHỞI TẠO ĐĂNG KÝ SỰ KIỆN (DOM EVENTS)
-// ==========================================================================
+// =========================================================================
+// KHỞI TẠO DOM EVENTS
+// =========================================================================
 function setupEventListeners() {
-    // Sự kiện Click Tab điều hướng công khai
+    // Sự kiện Click Tab
     document.getElementById("main-nav-tabs").addEventListener("click", function(e) {
         const btn = e.target.closest(".tab-btn");
         if (btn) {
@@ -63,37 +77,45 @@ function setupEventListeners() {
         }
     });
 
-    // Cập nhật Subtype khi thay đổi Type
+    // Cập nhật Subtype
     document.getElementById("chi-type").addEventListener("change", () => updateSubtypes('chi'));
     document.getElementById("thu-type").addEventListener("change", () => updateSubtypes('thu'));
 
-    // Gửi Form dữ liệu
+    // Submit Forms
     document.getElementById("form-chi").addEventListener("submit", (e) => saveTransaction(e, 'chi'));
     document.getElementById("form-thu").addEventListener("submit", (e) => saveTransaction(e, 'thu'));
     document.getElementById("form-nhachen").addEventListener("submit", (e) => saveReminder(e));
 
-    // Định dạng tiền tệ thời gian thực khi gõ
+    // Định dạng tiền tệ
     document.getElementById("chi-amount").addEventListener("input", (e) => formatCurrency(e.target));
     document.getElementById("thu-amount").addEventListener("input", (e) => formatCurrency(e.target));
 
-    // Đổi bộ lọc thời gian Top chi tiêu
+    // Bộ lọc
     document.getElementById("chi-top-period").addEventListener("change", () => renderTopExpenses());
     document.getElementById("sec4-period").addEventListener("change", () => renderSection4());
 
-    // Các tính năng tùy chọn khác
+    // Nhắc hẹn
     document.getElementById("rem-frequency").addEventListener("change", toggleCustomReminderFields);
+
+    // Family
     document.getElementById("btn-verify-family").addEventListener("click", verifyFamilyAuth);
+
+    // Modal
     document.getElementById("btn-close-modal").addEventListener("click", closeModal);
+
+    // Settings
     document.getElementById("darkModeToggle").addEventListener("change", (e) => toggleDarkMode(e.target.checked));
     document.getElementById("setting-color").addEventListener("change", applyTheme);
     document.getElementById("btn-sync-data").addEventListener("click", syncAllDataFromSheet);
     document.getElementById("btn-reset-app").addEventListener("click", resetAppCompletely);
-    document.getElementById("scrollTopBtn").addEventListener("click", scrollToTop);
-}
 
-// ==========================================================================
-// ĐIỀU HƯỚNG TABS THÔNG MINH
-// ==========================================================================
+    // Scroll
+    document.getElementById("scrollTopBtn").addEventListener("click", scrollToTop);
+} // end function setupEventListeners
+
+// =========================================================================
+// ĐIỀU HƯỚNG TABS
+// =========================================================================
 function switchTab(tabName) {
     document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
     document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
@@ -104,47 +126,64 @@ function switchTab(tabName) {
     const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
     if (activeBtn) activeBtn.classList.add("active");
     
-    if (tabName === 'chi' || tabName === 'thongke') renderChartsAndStats();
-    if (tabName === 'family') checkFamilyTabAccess();
-    if (tabName === 'nhachen') generateRemindersInterface();
-}
+    // Xử lý riêng cho từng tab
+    if (tabName === 'chi' || tabName === 'thongke') {
+        renderChartsAndStats();
+    }
+    if (tabName === 'family') {
+        checkFamilyTabAccess();
+    }
+    if (tabName === 'nhachen') {
+        generateRemindersInterface();
+    }
+} // end function switchTab
 
-// ==========================================================================
-// XỬ LÝ FORMAT & LIÊN KẾT DANH MỤC SELECTBOX
-// ==========================================================================
+// =========================================================================
+// HÀM TIỆN ÍCH
+// =========================================================================
 function formatCurrency(input) {
     let value = input.value.replace(/[^0-9.]/g, "");
     let parts = value.split(".");
     parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     input.value = parts.join(".");
-}
-function parseCurrency(str) { return str ? parseFloat(str.replace(/,/g, "")) : 0; }
-function formatVND(num) { return num.toLocaleString('en-US') + " đ"; }
+} // end function formatCurrency
+
+function parseCurrency(str) {
+    return str ? parseFloat(str.replace(/,/g, "")) : 0;
+} // end function parseCurrency
+
+function formatVND(num) {
+    return num.toLocaleString('en-US') + " đ";
+} // end function formatVND
 
 function updateSubtypes(mode) {
     const typeSelect = document.getElementById(`${mode}-type`);
     const subtypeSelect = document.getElementById(`${mode}-subtype`);
     if (!typeSelect || !subtypeSelect) return;
-    const selectedType = typeSelect.value;
     
+    const selectedType = typeSelect.value;
     subtypeSelect.innerHTML = "";
+    
     if (CATEGORIES[mode] && CATEGORIES[mode][selectedType]) {
         CATEGORIES[mode][selectedType].forEach(sub => {
             let opt = document.createElement("option");
-            opt.value = sub; opt.textContent = sub;
+            opt.value = sub;
+            opt.textContent = sub;
             subtypeSelect.appendChild(opt);
         });
     }
-}
+} // end function updateSubtypes
 
 function initFormOptions() {
     ['chi', 'thu'].forEach(mode => {
         const typeSelect = document.getElementById(`${mode}-type`);
         if (!typeSelect) return;
+        
         typeSelect.innerHTML = "";
         Object.keys(CATEGORIES[mode]).forEach(type => {
             let opt = document.createElement("option");
-            opt.value = type; opt.textContent = type;
+            opt.value = type;
+            opt.textContent = type;
             typeSelect.appendChild(opt);
         });
         updateSubtypes(mode);
@@ -156,35 +195,43 @@ function initFormOptions() {
     });
     initReminderDateOptions();
     initColorSettings();
-}
+} // end function initFormOptions
 
 function initColorSettings() {
     const sColor = document.getElementById("setting-color");
     if (!sColor || sColor.children.length > 0) return;
+    
     const textNames = ["Xanh Lá", "Xanh Bơ", "Xanh Dương", "Hồng", "Tím", "Đỏ", "Cam", "Vàng"];
     PALETTE.forEach((hex, i) => {
         let opt = document.createElement("option");
-        opt.value = hex; opt.textContent = textNames[i];
+        opt.value = hex;
+        opt.textContent = textNames[i];
         sColor.appendChild(opt);
     });
-}
+} // end function initColorSettings
 
-// ==========================================================================
-// QUẢN LÝ DỮ LIỆU THU CHI (TRANSACTIONS)
-// ==========================================================================
+// =========================================================================
+// XỬ LÝ GIAO DỊCH (TRANSACTIONS)
+// =========================================================================
 function saveTransaction(event, mode) {
     event.preventDefault();
+    
     const type = document.getElementById(`${mode}-type`).value;
     const subtype = document.getElementById(`${mode}-subtype`).value;
     let amount = parseCurrency(document.getElementById(`${mode}-amount`).value);
     const dateVal = document.getElementById(`${mode}-date`).value;
     const note = document.getElementById(`${mode}-note`).value;
     
+    // Chi thì số tiền âm
     if (mode === 'chi') amount = -Math.abs(amount);
 
     const transaction = {
         timestamp: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
-        type: type, subtype: subtype, amount: amount, note: note || "", synced: 0
+        type: type,
+        subtype: subtype,
+        amount: amount,
+        note: note || "",
+        synced: 0
     };
 
     const tx = db.transaction("transactions", "readwrite");
@@ -196,94 +243,159 @@ function saveTransaction(event, mode) {
         renderChartsAndStats();
         syncToGoogleSheets();
     };
-}
+    tx.onerror = function(e) {
+        alert("Lỗi lưu giao dịch: " + e.target.error);
+    };
+} // end function saveTransaction
 
 function getAllTransactions(callback) {
-    if (!db) return;
-    db.transaction("transactions", "readonly").objectStore("transactions").getAll().onsuccess = function(e) {
-        callback(e.target.result);
+    if (!db) {
+        callback([]);
+        return;
+    }
+    const tx = db.transaction("transactions", "readonly");
+    const store = tx.objectStore("transactions");
+    const request = store.getAll();
+    request.onsuccess = function(e) {
+        callback(e.target.result || []);
     };
-}
+    request.onerror = function(e) {
+        console.error("Lỗi đọc transactions:", e.target.error);
+        callback([]);
+    };
+} // end function getAllTransactions
 
 function syncToGoogleSheets() {
     if (!navigator.onLine || isSyncing || !CONFIG.apiEndpoint) return;
+    
     getAllTransactions(transactions => {
         const unsynced = transactions.filter(t => t.synced === 0);
         if (unsynced.length === 0) return;
+        
         isSyncing = true;
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'syncTransactions', data: unsynced })
+            body: JSON.stringify({ 
+                action: 'syncTransactions', 
+                data: unsynced.map(t => ({
+                    timestamp: t.timestamp,
+                    type: t.type,
+                    subtype: t.subtype,
+                    amount: t.amount,
+                    note: t.note
+                }))
+            })
         })
         .then(res => res.json())
         .then(resData => {
             if (resData.status === "success") {
                 const tx = db.transaction("transactions", "readwrite");
                 const store = tx.objectStore("transactions");
-                unsynced.forEach(t => { t.synced = 1; store.put(t); });
-                renderChartsAndStats(); 
+                unsynced.forEach(t => {
+                    t.synced = 1;
+                    store.put(t);
+                });
+                renderChartsAndStats();
             }
-            isSyncing = false; 
-        }).catch(() => { isSyncing = false; });
+            isSyncing = false;
+        })
+        .catch(() => {
+            isSyncing = false;
+        });
     });
-}
-window.addEventListener('online', syncToGoogleSheets);
+} // end function syncToGoogleSheets
 
-// ==========================================================================
-// VẼ ĐỒ THỊ VÀ THỐNG KÊ (CHARTS & STATS)
-// ==========================================================================
+// =========================================================================
+// ĐỒ THỊ & THỐNG KÊ
+// =========================================================================
 function renderPieChart(canvasId, labels, dataset, customColors = null) {
-    if (charts[canvasId]) charts[canvasId].destroy();
+    if (charts[canvasId]) {
+        charts[canvasId].destroy();
+        delete charts[canvasId];
+    }
+    
     const canvasEl = document.getElementById(canvasId);
     if (!canvasEl) return;
+    
     const ctx = canvasEl.getContext('2d');
     let total = dataset.reduce((a, b) => a + Math.abs(b), 0);
     let defaultColors = ['#4CAF50', '#F44336', '#FF9800', '#2196F3', '#9C27B0', '#E91E63'];
+    let colors = customColors || defaultColors;
     
     charts[canvasId] = new Chart(ctx, {
         type: 'pie',
-        data: { labels: labels, datasets: [{ data: dataset, backgroundColor: customColors || defaultColors }] },
-        plugins: [ChartDataLabels], 
+        data: {
+            labels: labels,
+            datasets: [{
+                data: dataset,
+                backgroundColor: colors
+            }]
+        },
+        plugins: [ChartDataLabels],
         options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: true, position: 'top',
+                    display: true,
+                    position: 'top',
                     labels: {
                         color: function(context) {
                             const bgColors = context.chart.data.datasets[0].backgroundColor;
                             return bgColors[context.index] || '#ffffff';
                         },
-                        font: { size: 13, weight: 'bold' }, padding: 12
+                        font: { size: 13, weight: 'bold' },
+                        padding: 12
                     }
                 },
                 datalabels: {
-                    color: ctx => { let c = ctx.dataset.backgroundColor[ctx.dataIndex]; return (c === '#FFEB3B' || c === '#8BC34A') ? '#111111' : '#ffffff'; },
-                    font: { weight: 'bold', size: 12 }, anchor: 'center', align: 'center',
-                    formatter: (value) => { return (total > 0 && (Math.abs(value) / total * 100) > 3) ? (Math.abs(value) / total * 100).toFixed(1) + "%" : ''; }
+                    color: function(ctx) {
+                        let c = ctx.dataset.backgroundColor[ctx.dataIndex];
+                        return (c === '#FFEB3B' || c === '#8BC34A') ? '#111111' : '#ffffff';
+                    },
+                    font: { weight: 'bold', size: 12 },
+                    anchor: 'center',
+                    align: 'center',
+                    formatter: function(value) {
+                        if (total > 0 && (Math.abs(value) / total * 100) > 3) {
+                            return (Math.abs(value) / total * 100).toFixed(1) + "%";
+                        }
+                        return '';
+                    }
                 },
                 tooltip: {
-                    callbacks: { label: ctx => ctx.label + ": " + Math.abs(ctx.raw).toLocaleString() + " (" + (total > 0 ? (Math.abs(ctx.raw) / total * 100).toFixed(1) + "%" : "0%") + ")" }
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.label + ": " + Math.abs(ctx.raw).toLocaleString() + 
+                                   " (" + (total > 0 ? (Math.abs(ctx.raw) / total * 100).toFixed(1) + "%" : "0%") + ")";
+                        }
+                    }
                 }
             }
         }
     });
-}
+} // end function renderPieChart
 
 function renderChartsAndStats() {
     getAllTransactions(data => {
         let totalThu = 0, totalChi = 0, sum_Tiger = 0, sum_Mine = 0;
         let catCurrentMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
         let catPrevMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
-        const now = new Date(), cM = now.getMonth(), cY = now.getFullYear();
-        let pM = cM - 1, pY = cY; if (pM < 0) { pM = 11; pY--; }
+        
+        const now = new Date();
+        const cM = now.getMonth();
+        const cY = now.getFullYear();
+        let pM = cM - 1;
+        let pY = cY;
+        if (pM < 0) { pM = 11; pY--; }
 
-        let sortedData = [...data].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+        // Sắp xếp dữ liệu
+        let sortedData = [...data].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         let expList = sortedData.filter(t => t.amount < 0).slice(0, 20);
         let incList = sortedData.filter(t => t.amount > 0).slice(0, 20);
 
-        // Render bảng Lịch sử Chi
+        // Render lịch sử Chi
         const expContainer = document.getElementById("expense-history-container");
         if (expList.length && expContainer) {
             let htmlChi = `<table class="history-table"><tbody>`;
@@ -294,9 +406,11 @@ function renderChartsAndStats() {
             });
             htmlChi += `</tbody></table>`;
             expContainer.innerHTML = htmlChi;
-        } else if (expContainer) expContainer.innerHTML = "Chưa có khoản chi nào.";
+        } else if (expContainer) {
+            expContainer.innerHTML = "Chưa có khoản chi nào.";
+        }
         
-        // Render bảng Lịch sử Thu
+        // Render lịch sử Thu
         const incContainer = document.getElementById("income-history-container");
         if (incList.length && incContainer) {
             let htmlThu = `<table class="history-table"><tbody>`;
@@ -307,10 +421,15 @@ function renderChartsAndStats() {
             });
             htmlThu += `</tbody></table>`;
             incContainer.innerHTML = htmlThu;
-        } else if (incContainer) incContainer.innerHTML = "Chưa có khoản thu nào.";
+        } else if (incContainer) {
+            incContainer.innerHTML = "Chưa có khoản thu nào.";
+        }
 
+        // Tính toán thống kê
         data.forEach(t => {
-            const tDate = new Date(t.timestamp), amt = t.amount;
+            const tDate = new Date(t.timestamp);
+            const amt = t.amount;
+            
             if (amt > 0) {
                 totalThu += amt;
                 if (t.type === "CON CỢP") sum_Tiger += amt;
@@ -318,15 +437,20 @@ function renderChartsAndStats() {
             } else {
                 totalChi += Math.abs(amt);
                 let absAmt = Math.abs(amt);
+                
                 if (tDate.getFullYear() === cY && tDate.getMonth() === cM) {
                     catCurrentMonth["Tổng"] += absAmt;
-                    if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") catCurrentMonth["Ăn uống"] += absAmt;
+                    if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") {
+                        catCurrentMonth["Ăn uống"] += absAmt;
+                    }
                     if (t.subtype === "Đồ chơi") catCurrentMonth["Đồ chơi"] += absAmt;
                     if (t.subtype === "Mỹ phẩm") catCurrentMonth["Mỹ phẩm"] += absAmt;
                     if (t.subtype === "Quần áo") catCurrentMonth["Quần áo"] += absAmt;
                 } else if (tDate.getFullYear() === pY && tDate.getMonth() === pM) {
                     catPrevMonth["Tổng"] += absAmt;
-                    if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") catPrevMonth["Ăn uống"] += absAmt;
+                    if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") {
+                        catPrevMonth["Ăn uống"] += absAmt;
+                    }
                     if (t.subtype === "Đồ chơi") catPrevMonth["Đồ chơi"] += absAmt;
                     if (t.subtype === "Mỹ phẩm") catPrevMonth["Mỹ phẩm"] += absAmt;
                     if (t.subtype === "Quần áo") catPrevMonth["Quần áo"] += absAmt;
@@ -334,43 +458,63 @@ function renderChartsAndStats() {
             }
         });
 
-        renderPieChart('chart-chi-overview', ['Tổng Thu', 'Tổng Chi'], [totalThu, totalChi]);
-        renderTopExpenses();
-
+        // Section 1: Cảnh báo
         const alertDiv = document.getElementById("section1-alerts");
         if (alertDiv) {
             alertDiv.innerHTML = "";
+            let hasAlert = false;
             Object.keys(catCurrentMonth).forEach(cat => {
-                let cur = catCurrentMonth[cat], prev = catPrevMonth[cat];
-                if (prev > 0 && cur > prev) alertDiv.innerHTML += `<div class="alert-box">Hạng mục <strong>${cat}</strong> chi vượt <strong>${((cur - prev) / prev * 100).toFixed(1)}%</strong> so với tháng trước!</div>`;
+                let cur = catCurrentMonth[cat];
+                let prev = catPrevMonth[cat];
+                if (prev > 0 && cur > prev) {
+                    hasAlert = true;
+                    alertDiv.innerHTML += `<div class="alert-box">Hạng mục <strong>${cat}</strong> chi vượt <strong>${((cur - prev) / prev * 100).toFixed(1)}%</strong> so với tháng trước!</div>`;
+                }
             });
-            if (!alertDiv.innerHTML) alertDiv.innerHTML = "<p style='color:green;'>An toàn! Không có hạng mục nào chi vượt tháng trước.</p>";
+            if (!hasAlert) {
+                alertDiv.innerHTML = "<p style='color:green;'>An toàn! Không có hạng mục nào chi vượt tháng trước.</p>";
+            }
         }
 
-        if (document.getElementById("sec2-thu")) document.getElementById("sec2-thu").textContent = formatVND(totalThu);
-        if (document.getElementById("sec2-chi")) document.getElementById("sec2-chi").textContent = formatVND(totalChi);
-        if (document.getElementById("sec2-remain")) document.getElementById("sec2-remain").textContent = formatVND(totalThu - totalChi);
+        // Section 2: Tổng quan
+        document.getElementById("sec2-thu").textContent = formatVND(totalThu);
+        document.getElementById("sec2-chi").textContent = formatVND(totalChi);
+        document.getElementById("sec2-remain").textContent = formatVND(totalThu - totalChi);
         renderPieChart('chart-sec2-pie', ['Tổng Thu', 'Tổng Chi'], [totalThu, totalChi]);
 
-        if (document.getElementById("sec3-Mine")) document.getElementById("sec3-Mine").textContent = formatVND(sum_Mine);
-        if (document.getElementById("sec3-Tiger")) document.getElementById("sec3-Tiger").textContent = formatVND(sum_Tiger);
+        // Section 3: Nguồn thu
+        document.getElementById("sec3-Mine").textContent = formatVND(sum_Mine);
+        document.getElementById("sec3-Tiger").textContent = formatVND(sum_Tiger);
         renderPieChart('chart-sec3-pie', ['MÌNH', 'CON CỢP'], [sum_Mine, sum_Tiger], ['#8BC34A', '#E91E63']);
 
+        // Section 4: Báo cáo định kỳ
         renderSection4(data);
+        
+        // Biểu đồ chi tiêu
+        renderPieChart('chart-chi-overview', ['Tổng Thu', 'Tổng Chi'], [totalThu, totalChi]);
+        renderTopExpenses();
     });
-}
+} // end function renderChartsAndStats
 
 function renderTopExpenses() {
     const periodSelect = document.getElementById("chi-top-period");
     if (!periodSelect) return;
-    const period = periodSelect.value, now = new Date();
+    
+    const period = periodSelect.value;
+    const now = new Date();
     
     getAllTransactions(data => {
         let filtered = data.filter(t => t.amount < 0).filter(t => {
             let d = new Date(t.timestamp);
-            if (period === 'week') return (now - d) <= 7 * 24 * 60 * 60 * 1000;
-            if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            if (period === 'year') return d.getFullYear() === now.getFullYear();
+            if (period === 'week') {
+                return (now - d) <= 7 * 24 * 60 * 60 * 1000;
+            }
+            if (period === 'month') {
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            }
+            if (period === 'year') {
+                return d.getFullYear() === now.getFullYear();
+            }
             return true;
         });
 
@@ -408,72 +552,109 @@ function renderTopExpenses() {
         });
         container.innerHTML = html;
     });
-}
+} // end function renderTopExpenses
 
 function renderSection4(allData) {
     const periodSelect = document.getElementById("sec4-period");
     if (!periodSelect) return;
-    const period = periodSelect.value;
     
+    const period = periodSelect.value;
     const run = data => {
-        const now = new Date(); let currentBalance = 0, totalThu = 0, fullChi = 0, investmentSavings = 0;
+        const now = new Date();
+        let currentBalance = 0;
+        let totalThu = 0;
+        let fullChi = 0;
+        let investmentSavings = 0;
+        
         data.forEach(t => {
-            let d = new Date(t.timestamp); currentBalance += t.amount; 
-            let isMatch = (period === 'month') ? (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) : (d.getFullYear() === now.getFullYear());
+            let d = new Date(t.timestamp);
+            currentBalance += t.amount;
+            
+            let isMatch = false;
+            if (period === 'month') {
+                isMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            } else {
+                isMatch = d.getFullYear() === now.getFullYear();
+            }
+            
             if (isMatch) {
-                if (t.amount > 0) totalThu += t.amount;
-                else {
-                    if (t.type === "Đầu tư, tiết kiệm") investmentSavings += Math.abs(t.amount);
-                    else fullChi += Math.abs(t.amount);
+                if (t.amount > 0) {
+                    totalThu += t.amount;
+                } else {
+                    if (t.type === "Đầu tư, tiết kiệm") {
+                        investmentSavings += Math.abs(t.amount);
+                    } else {
+                        fullChi += Math.abs(t.amount);
+                    }
                 }
             }
         });
 
-        if (document.getElementById("sec4-balance")) document.getElementById("sec4-balance").textContent = formatVND(currentBalance);
-        if (document.getElementById("sec4-thu")) document.getElementById("sec4-thu").textContent = formatVND(totalThu);
-        if (document.getElementById("sec4-net-chi")) document.getElementById("sec4-net-chi").textContent = formatVND(fullChi);
-        if (document.getElementById("sec4-savings")) document.getElementById("sec4-savings").textContent = formatVND(investmentSavings);
-        renderPieChart('chart-sec4-pie', ['Tổng Thu', 'Tổng Chi Thực Tế', 'Tiết Kiệm'], [totalThu, fullChi, investmentSavings], ['#4CAF50', '#F44336', '#FFEB3B']);
+        document.getElementById("sec4-balance").textContent = formatVND(currentBalance);
+        document.getElementById("sec4-thu").textContent = formatVND(totalThu);
+        document.getElementById("sec4-net-chi").textContent = formatVND(fullChi);
+        document.getElementById("sec4-savings").textContent = formatVND(investmentSavings);
+        renderPieChart('chart-sec4-pie', ['Tổng Thu', 'Tổng Chi Thực Tế', 'Tiết Kiệm'], 
+                       [totalThu, fullChi, investmentSavings], ['#4CAF50', '#F44336', '#FFEB3B']);
     };
-    if (allData) run(allData); else getAllTransactions(run);
-}
+    
+    if (allData) {
+        run(allData);
+    } else {
+        getAllTransactions(run);
+    }
+} // end function renderSection4
 
-// ==========================================================================
-// BẢO MẬT & HIỂN THỊ LÝ LỊCH GIA ĐÌNH (FAMILY)
-// ==========================================================================
+// =========================================================================
+// FAMILY - BẢO MẬT & HIỂN THỊ
+// =========================================================================
 function checkFamilyTabAccess() {
     const isUnlocked = localStorage.getItem("family_unlocked") === "true";
     const authView = document.getElementById("family-auth-view");
     const mainView = document.getElementById("family-main-view");
+    
     if (!authView || !mainView) return;
 
     if (isUnlocked) {
-        authView.style.setProperty("display", "none", "important");
-        mainView.style.setProperty("display", "block", "important");
+        authView.style.display = "none";
+        mainView.style.display = "block";
         generateFamilyInterface();
     } else {
-        authView.style.setProperty("display", "block", "important");
-        mainView.style.setProperty("display", "none", "important");
+        authView.style.display = "block";
+        mainView.style.display = "none";
     }
-}
+} // end function checkFamilyTabAccess
 
 function verifyFamilyAuth() {
     const inputPass = document.getElementById("family-password").value;
-    if (!inputPass.trim()) { alert("Vui lòng nhập mật khẩu!"); return; }
+    if (!inputPass.trim()) {
+        alert("Vui lòng nhập mật khẩu!");
+        return;
+    }
+    
     fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(inputPass.trim())}`)
         .then(res => res.json())
         .then(res => {
             if (res.status === "success" && res.match === true) {
                 localStorage.setItem("family_unlocked", "true");
                 checkFamilyTabAccess();
-            } else alert("Mật khẩu không khớp!");
-        }).catch(() => { alert("Không thể kết nối xác thực!"); });
-}
+            } else {
+                alert("Mật khẩu không khớp!");
+            }
+        })
+        .catch(() => {
+            alert("Không thể kết nối xác thực!");
+        });
+} // end function verifyFamilyAuth
 
 function generateFamilyInterface() {
     const container = document.getElementById("family-buttons-container");
     if (!container) return;
-    if (localFamilyData && localFamilyData.length > 0) { renderFamilyGrid(localFamilyData); return; }
+    
+    if (localFamilyData && localFamilyData.length > 0) {
+        renderFamilyGrid(localFamilyData);
+        return;
+    }
     
     container.innerHTML = "<p style='color: #aaa; text-align: center;'>🔄 Đang tải dữ liệu...</p>";
     fetch(`${CONFIG.apiEndpoint}?action=getFamilyData`)
@@ -481,46 +662,80 @@ function generateFamilyInterface() {
         .then(res => {
             if (res.status === "success" && res.data) {
                 localFamilyData = res.data;
-                if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "family_data", value: res.data });
+                if (db) {
+                    db.transaction("settings", "readwrite")
+                      .objectStore("settings")
+                      .put({ key: "family_data", value: res.data });
+                }
                 renderFamilyGrid(res.data);
-            } else container.innerHTML = "<p style='color: #aaa; text-align: center;'>📭 Chưa có dữ liệu.</p>";
-        }).catch(() => { container.innerHTML = "<p style='color: #f44336; text-align: center;'>❌ Lỗi kết nối!</p>"; });
-}
+            } else {
+                container.innerHTML = "<p style='color: #aaa; text-align: center;'>📭 Chưa có dữ liệu.</p>";
+            }
+        })
+        .catch(() => {
+            container.innerHTML = "<p style='color: #f44336; text-align: center;'>❌ Lỗi kết nối!</p>";
+        });
+} // end function generateFamilyInterface
 
 function renderFamilyGrid(members) {
     const container = document.getElementById("family-buttons-container");
-    if (!container) return; 
-    container.innerHTML = "";
+    if (!container) return;
     
+    container.innerHTML = "";
     members.forEach(m => {
-        let btn = document.createElement("button"); 
-        btn.className = "member-btn"; 
-        btn.textContent = m.nickname || m.fullname; 
+        let btn = document.createElement("button");
+        btn.className = "member-btn";
+        btn.textContent = m.nickname || m.fullname || "Thành viên";
         btn.onclick = () => showFamilyModal(m);
         container.appendChild(btn);
     });
-}
+} // end function renderFamilyGrid
 
 function showFamilyModal(m) {
     const fields = [
-        { l: "Biệt danh", v: m.nickname || "-" }, { l: "Họ tên", v: m.fullname || "-" }, { l: "Ngày sinh", v: m.dob || "-" }, { l: "Nơi sinh", v: m.noisinh || "-" }, { l: "Địa chỉ", v: m.diachi || "-" },
-        { l: "CCCD: Số", v: m.cccd?.so || "-" }, { l: "CCCD: Ngày cấp", v: m.cccd?.ngaycap || "-" }, { l: "CCCD: Ngày hết hạn", v: m.cccd?.ngayhethan || "-" }, { l: "CCCD: Nơi cấp", v: m.cccd?.noicap || "-" },
-        { l: "Hộ chiếu: Số", v: m.hochieu?.so || "-" }, { l: "Hộ chiếu: Ngày cấp", v: m.hochieu?.ngaycap || "-" }, { l: "Hộ chiếu: Ngày hết hạn", v: m.hochieu?.ngayhethan || "-" }, { l: "Hộ chiếu: Nơi cấp", v: m.hochieu?.noicap || "-" },
-        { l: "Thẻ BHYT", v: m.bhyt || "-" }, { l: "Mã số BHXH", v: m.bhxh || "-" }, { l: "Mã số thuế", v: m.masothue || "-" }, 
-        { l: "LLTP: Số", v: m.lltp?.so || "-" }, { l: "LLTP: Ngày cấp", v: m.lltp?.ngaycap || "-" }, { l: "LLTP: Nơi cấp", v: m.lltp?.noicap || "-" }
+        { l: "Biệt danh", v: m.nickname || "-" },
+        { l: "Họ tên", v: m.fullname || "-" },
+        { l: "Ngày sinh", v: m.dob || "-" },
+        { l: "Nơi sinh", v: m.noisinh || "-" },
+        { l: "Địa chỉ", v: m.diachi || "-" },
+        { l: "CCCD: Số", v: m.cccd?.so || "-" },
+        { l: "CCCD: Ngày cấp", v: m.cccd?.ngaycap || "-" },
+        { l: "CCCD: Ngày hết hạn", v: m.cccd?.ngayhethan || "-" },
+        { l: "CCCD: Nơi cấp", v: m.cccd?.noicap || "-" },
+        { l: "Hộ chiếu: Số", v: m.hochieu?.so || "-" },
+        { l: "Hộ chiếu: Ngày cấp", v: m.hochieu?.ngaycap || "-" },
+        { l: "Hộ chiếu: Ngày hết hạn", v: m.hochieu?.ngayhethan || "-" },
+        { l: "Hộ chiếu: Nơi cấp", v: m.hochieu?.noicap || "-" },
+        { l: "Thẻ BHYT", v: m.bhyt || "-" },
+        { l: "Mã số BHXH", v: m.bhxh || "-" },
+        { l: "Mã số thuế", v: m.masothue || "-" },
+        { l: "LLTP: Số", v: m.lltp?.so || "-" },
+        { l: "LLTP: Ngày cấp", v: m.lltp?.ngaycap || "-" },
+        { l: "LLTP: Nơi cấp", v: m.lltp?.noicap || "-" }
     ];
-    const detailsDiv = document.getElementById("modal-member-details");
-    if (!detailsDiv) return; detailsDiv.innerHTML = ""; let fullBlockText = "";
     
-    let lastGroup = ""; 
+    const detailsDiv = document.getElementById("modal-member-details");
+    if (!detailsDiv) return;
+    
+    detailsDiv.innerHTML = "";
+    let fullBlockText = "";
+    let lastGroup = "";
+    
     fields.forEach(f => {
         fullBlockText += `${f.l}: ${f.v}\n`;
         let currentGroup = "";
         let cleanLabel = f.l;
         
-        if (f.l.startsWith("CCCD:")) { currentGroup = "CCCD"; cleanLabel = f.l.replace("CCCD:", "").trim(); } 
-        else if (f.l.startsWith("Hộ chiếu:")) { currentGroup = "Hộ chiếu"; cleanLabel = f.l.replace("Hộ chiếu:", "").trim(); } 
-        else if (f.l.startsWith("LLTP:")) { currentGroup = "Lí lịch tư pháp"; cleanLabel = f.l.replace("LLTP:", "").trim(); }
+        if (f.l.startsWith("CCCD:")) {
+            currentGroup = "CCCD";
+            cleanLabel = f.l.replace("CCCD:", "").trim();
+        } else if (f.l.startsWith("Hộ chiếu:")) {
+            currentGroup = "Hộ chiếu";
+            cleanLabel = f.l.replace("Hộ chiếu:", "").trim();
+        } else if (f.l.startsWith("LLTP:")) {
+            currentGroup = "Lí lịch tư pháp";
+            cleanLabel = f.l.replace("LLTP:", "").trim();
+        }
 
         if (currentGroup && currentGroup !== lastGroup) {
             let groupHeader = document.createElement("div");
@@ -530,82 +745,133 @@ function showFamilyModal(m) {
             lastGroup = currentGroup;
         }
 
-        let row = document.createElement("div"); 
+        let row = document.createElement("div");
         row.className = "info-row";
         if (currentGroup) {
             row.innerHTML = `<div class="info-label" style="padding-left:15px; font-size:0.9rem;">- ${cleanLabel}</div><div class="info-value" style="padding-left:25px; font-weight:500;">${f.v}</div>`;
         } else {
-            if (!currentGroup) lastGroup = ""; 
+            if (!currentGroup) lastGroup = "";
             row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}</div>`;
         }
         
-        row.onclick = () => { if (f.v !== "-") { navigator.clipboard.writeText(f.v); alert(`Đã copy: ${f.v}`); } };
+        row.onclick = () => {
+            if (f.v !== "-") {
+                navigator.clipboard.writeText(f.v).then(() => {
+                    alert(`Đã copy: ${f.v}`);
+                }).catch(() => {
+                    // Fallback
+                    const textArea = document.createElement('textarea');
+                    textArea.value = f.v;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    alert(`Đã copy: ${f.v}`);
+                });
+            }
+        };
         detailsDiv.appendChild(row);
     });
     
-    document.getElementById("btn-copy-all").onclick = () => { navigator.clipboard.writeText(fullBlockText); alert("Đã copy toàn bộ thông tin lí lịch!"); };
+    document.getElementById("btn-copy-all").onclick = () => {
+        navigator.clipboard.writeText(fullBlockText).then(() => {
+            alert("Đã copy toàn bộ thông tin lí lịch!");
+        }).catch(() => {
+            const textArea = document.createElement('textarea');
+            textArea.value = fullBlockText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            alert("Đã copy toàn bộ thông tin lí lịch!");
+        });
+    };
+    
     document.getElementById("familyModal").style.display = "flex";
-}
-function closeModal() { document.getElementById("familyModal").style.display = "none"; }
+} // end function showFamilyModal
 
-// ==========================================================================
-// TÍNH NĂNG NHẮC HẸN & THÔNG BÁO ĐẨY (REMINDERS)
-// ==========================================================================
+function closeModal() {
+    document.getElementById("familyModal").style.display = "none";
+} // end function closeModal
+
+// =========================================================================
+// NHẮC HẸN
+// =========================================================================
 function initReminderDateOptions() {
     const dSel = document.getElementById("rem-day");
     const mSel = document.getElementById("rem-month");
     const ySel = document.getElementById("rem-year");
     if (!dSel || !mSel || !ySel) return;
 
-    dSel.innerHTML = ""; mSel.innerHTML = ""; ySel.innerHTML = "";
-    for (let i = 1; i <= 31; i++) dSel.innerHTML += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
-    for (let i = 1; i <= 12; i++) mSel.innerHTML += `<option value="${i}">Tháng ${String(i).padStart(2,'0')}</option>`;
+    dSel.innerHTML = "";
+    mSel.innerHTML = "";
+    ySel.innerHTML = "";
+    
+    for (let i = 1; i <= 31; i++) {
+        dSel.innerHTML += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
+    }
+    for (let i = 1; i <= 12; i++) {
+        mSel.innerHTML += `<option value="${i}">Tháng ${String(i).padStart(2,'0')}</option>`;
+    }
     
     const currYear = new Date().getFullYear();
-    for (let i = currYear; i <= currYear + 5; i++) ySel.innerHTML += `<option value="${i}">Năm ${i}</option>`;
+    for (let i = currYear; i <= currYear + 5; i++) {
+        ySel.innerHTML += `<option value="${i}">Năm ${i}</option>`;
+    }
 
     const today = new Date();
     dSel.value = today.getDate();
     mSel.value = today.getMonth() + 1;
     ySel.value = today.getFullYear();
-}
+} // end function initReminderDateOptions
 
 function toggleCustomReminderFields() {
     const freq = document.getElementById("rem-frequency").value;
     const customBox = document.getElementById("custom-reminder-fields");
-    if (customBox) customBox.style.display = (freq === "CUSTOM") ? "block" : "none";
-}
+    if (customBox) {
+        customBox.style.display = (freq === "CUSTOM") ? "block" : "none";
+    }
+} // end function toggleCustomReminderFields
 
 function requestNotificationPermission() {
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
-}
+} // end function requestNotificationPermission
 
 function triggerPushNotification(title, body) {
     if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(title, { body: body, icon: "favicon.ico" });
+        try {
+            new Notification(title, { body: body, icon: "favicon.ico" });
+        } catch(e) {
+            console.log("Notification error:", e);
+        }
     }
-}
+} // end function triggerPushNotification
 
 function saveReminder(event) {
     event.preventDefault();
+    
     const content = document.getElementById("rem-content").value.trim();
     const day = document.getElementById("rem-day").value;
     const month = document.getElementById("rem-month").value;
     const year = document.getElementById("rem-year").value;
     const frequency = document.getElementById("rem-frequency").value;
     
-    let everyVal = ""; let everyUnit = "";
-    if (frequency === "CUSTOM") {
-        everyVal = document.getElementById("rem-every-val").value;
-        everyUnit = document.getElementById("rem-every-unit").value;
+    if (!content) {
+        alert("Vui lòng nhập nội dung nhắc hẹn!");
+        return;
     }
-
+    
     const startDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    
+    // Tính ngày cần nhắc (ngày bắt đầu)
     const reminderItem = {
-        content: content, startDate: startDateStr, frequency: frequency,
-        everyVal: everyVal, everyUnit: everyUnit, synced: 0
+        content: content,
+        startDate: startDateStr,
+        frequency: frequency,
+        synced: 0,
+        status: "ENABLED"
     };
 
     const tx = db.transaction("reminders", "readwrite");
@@ -618,59 +884,169 @@ function saveReminder(event) {
         generateRemindersInterface();
         syncRemindersToSheet();
     };
-}
+    tx.onerror = function(e) {
+        alert("Lỗi lưu nhắc hẹn: " + e.target.error);
+    };
+} // end function saveReminder
 
 function generateRemindersInterface() {
     const container = document.getElementById("reminder-list-container");
     if (!container) return;
-    if (!db) { container.innerHTML = "Lỗi cơ sở dữ liệu."; return; }
     
-    db.transaction("reminders", "readonly").objectStore("reminders").getAll().onsuccess = function(e) {
+    if (!db) {
+        container.innerHTML = "Lỗi cơ sở dữ liệu.";
+        return;
+    }
+    
+    const tx = db.transaction("reminders", "readonly");
+    const store = tx.objectStore("reminders");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
         const list = e.target.result || [];
         localReminderData = list;
         renderRemindersList(list);
         checkAndTriggerReminders(list);
     };
-}
+    request.onerror = function(e) {
+        container.innerHTML = "Lỗi đọc dữ liệu nhắc hẹn.";
+        console.error("Lỗi đọc reminders:", e.target.error);
+    };
+} // end function generateRemindersInterface
 
 function renderRemindersList(list) {
     const container = document.getElementById("reminder-list-container");
     if (!container) return;
+    
     if (list.length === 0) {
         container.innerHTML = "<p style='color: #aaa; text-align: center;'>📭 Chưa có lịch nhắc hẹn nào.</p>";
         return;
     }
 
-    let html = `<table class="history-table"><thead><tr><th>Nội dung</th><th>Ngày bắt đầu</th><th>Tần suất</th></tr></thead><tbody>`;
-    list.forEach(r => {
-        let freqText = r.frequency;
-        if (r.frequency === "CUSTOM") freqText = `Mỗi ${r.everyVal} ${r.everyUnit}`;
-        let dateParts = r.startDate.split("-");
-        let displayDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+    // Sắp xếp theo ngày bắt đầu
+    const sortedList = [...list].sort((a, b) => {
+        if (a.startDate < b.startDate) return -1;
+        if (a.startDate > b.startDate) return 1;
+        return 0;
+    });
 
-        html += `<tr><td style="font-weight:600; color:var(--theme-color);">${r.content}</td><td>${displayDate}</td><td><small class="theme-bg" style="padding:2px 6px; border-radius:4px; font-size:0.75rem;">${freqText}</small></td></tr>`;
+    let html = `<table class="history-table"><thead><tr><th>Nội dung</th><th>Ngày bắt đầu</th><th>Tần suất</th><th>Trạng thái</th></tr></thead><tbody>`;
+    
+    sortedList.forEach(r => {
+        let freqText = r.frequency || "ONCE";
+        const freqMap = {
+            'ONCE': 'Một lần',
+            'DAILY': 'Hàng ngày',
+            'WEEKLY': 'Hàng tuần',
+            'MONTHLY': 'Hàng tháng',
+            'CUSTOM': 'Tùy chỉnh'
+        };
+        freqText = freqMap[freqText] || freqText;
+        
+        let displayDate = r.startDate;
+        if (r.startDate) {
+            let parts = r.startDate.split("-");
+            if (parts.length === 3) {
+                displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+        }
+        
+        let statusColor = r.status === "ENABLED" ? "var(--success-color)" : "var(--danger-color)";
+        let statusText = r.status === "ENABLED" ? "✅ Hoạt động" : "⛔ Tắt";
+        
+        // Kiểm tra xem ngày nhắc đã qua chưa
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const remDate = new Date(r.startDate);
+        remDate.setHours(0,0,0,0);
+        let isPast = remDate < today && r.frequency !== "ONCE";
+        
+        html += `<tr style="${isPast ? 'opacity:0.5;' : ''}">
+            <td style="font-weight:600; color:var(--theme-color);">${r.content}</td>
+            <td>${displayDate} ${isPast ? '<span style="color:#999;font-size:0.8rem;">(đã qua)</span>' : ''}</td>
+            <td><small class="theme-bg" style="padding:2px 6px; border-radius:4px; font-size:0.75rem;">${freqText}</small></td>
+            <td style="color:${statusColor}; font-size:0.85rem;">${statusText}</td>
+        </tr>`;
     });
     html += `</tbody></table>`;
     container.innerHTML = html;
-}
+} // end function renderRemindersList
 
 function checkAndTriggerReminders(reminders) {
-    const today = new Date(); today.setHours(0,0,0,0);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
     reminders.forEach(r => {
-        const startRemDate = new Date(r.startDate); startRemDate.setHours(0,0,0,0);
+        if (r.status === "DISABLED") return;
+        
+        const startRemDate = new Date(r.startDate);
+        startRemDate.setHours(0,0,0,0);
+        
+        // Kiểm tra nếu ngày bắt đầu đã qua thì bỏ qua
+        if (startRemDate < today && r.frequency !== "ONCE") return;
+        
+        // Nếu là nhắc một lần và ngày đã qua thì bỏ qua
+        if (r.frequency === "ONCE" && startRemDate < today) return;
+        
+        // Kiểm tra đúng ngày hôm nay
         if (startRemDate.getTime() === today.getTime()) {
             triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
-        } else if (startRemDate.getTime() === tomorrow.getTime()) {
+        } 
+        // Kiểm tra ngày mai
+        else if (startRemDate.getTime() === tomorrow.getTime()) {
             triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
         }
+        
+        // Xử lý nhắc theo tần suất
+        if (r.frequency === "DAILY" || r.frequency === "WEEKLY" || r.frequency === "MONTHLY") {
+            // Tính số ngày kể từ ngày bắt đầu đến hôm nay
+            const diffDays = Math.floor((today - startRemDate) / (1000 * 60 * 60 * 24));
+            
+            if (r.frequency === "DAILY" && diffDays > 0 && diffDays % 1 === 0) {
+                triggerPushNotification("🔄 NHẮC HÀNG NGÀY", r.content);
+            } else if (r.frequency === "WEEKLY" && diffDays > 0 && diffDays % 7 === 0) {
+                triggerPushNotification("🔄 NHẮC HÀNG TUẦN", r.content);
+            } else if (r.frequency === "MONTHLY" && diffDays > 0 && diffDays % 30 === 0) {
+                triggerPushNotification("🔄 NHẮC HÀNG THÁNG", r.content);
+            }
+        }
     });
-}
+} // end function checkAndTriggerReminders
+
+function startDailyReminderCheck() {
+    // Kiểm tra mỗi 30 phút
+    if (notificationCheckInterval) {
+        clearInterval(notificationCheckInterval);
+    }
+    
+    notificationCheckInterval = setInterval(() => {
+        if (db) {
+            const tx = db.transaction("reminders", "readonly");
+            const store = tx.objectStore("reminders");
+            const request = store.getAll();
+            request.onsuccess = function(e) {
+                const list = e.target.result || [];
+                checkAndTriggerReminders(list);
+            };
+        }
+    }, 30 * 60 * 1000); // 30 phút
+    
+    // Kiểm tra ngay khi khởi động
+    setTimeout(() => {
+        generateRemindersInterface();
+    }, 3000);
+} // end function startDailyReminderCheck
 
 function syncRemindersToSheet() {
     if (!navigator.onLine || !CONFIG.apiEndpoint) return;
-    db.transaction("reminders", "readonly").objectStore("reminders").getAll().onsuccess = function(e) {
+    
+    const tx = db.transaction("reminders", "readonly");
+    const store = tx.objectStore("reminders");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
         const list = e.target.result || [];
         const unsynced = list.filter(r => r.synced === 0);
         if (unsynced.length === 0) return;
@@ -678,31 +1054,46 @@ function syncRemindersToSheet() {
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'syncReminders', data: unsynced })
+            body: JSON.stringify({
+                action: 'syncReminders',
+                data: unsynced.map(r => ({
+                    content: r.content,
+                    startDate: r.startDate,
+                    frequency: r.frequency,
+                    status: r.status || "ENABLED"
+                }))
+            })
         })
         .then(res => res.json())
         .then(resData => {
             if (resData.status === "success") {
-                const tx = db.transaction("reminders", "readwrite");
-                const store = tx.objectStore("reminders");
-                unsynced.forEach(r => { r.synced = 1; store.put(r); });
+                const tx2 = db.transaction("reminders", "readwrite");
+                const store2 = tx2.objectStore("reminders");
+                unsynced.forEach(r => {
+                    r.synced = 1;
+                    store2.put(r);
+                });
             }
-        }).catch(()=>{});
-    }; 
-}
+        })
+        .catch(() => {});
+    };
+} // end function syncRemindersToSheet
 
-// ==========================================================================
+// =========================================================================
 // CÀI ĐẶT GIAO DIỆN (THEMES)
-// ==========================================================================
+// =========================================================================
 function toggleDarkMode(enable) {
     document.documentElement.setAttribute('data-theme', enable ? 'dark' : 'light');
     localStorage.setItem('darkMode', enable ? 'true' : 'false');
+    
     const colorInput = document.getElementById("setting-color");
-    if (colorInput) { 
-        const slider = document.querySelector('.slider'); 
-        if (slider) slider.style.backgroundColor = enable ? colorInput.value : '#ccc'; 
+    if (colorInput) {
+        const slider = document.querySelector('.slider');
+        if (slider) {
+            slider.style.backgroundColor = enable ? colorInput.value : '#ccc';
+        }
     }
-}
+} // end function toggleDarkMode
 
 function applyTheme() {
     const themeColor = document.getElementById("setting-color")?.value || "#8BC34A";
@@ -710,111 +1101,179 @@ function applyTheme() {
     root.style.setProperty('--theme-color', themeColor.toLowerCase());
     root.classList.toggle("theme-yellow", /yellow|#ffeb3b/i.test(themeColor));
     
-    let r = parseInt(themeColor.slice(1,3),16), g = parseInt(themeColor.slice(3,5),16), b = parseInt(themeColor.slice(5,7),16);
-    root.style.setProperty('--text-on-theme', ((r*299 + g*587 + b*114)/1000) > 150 ? '#111111' : '#ffffff');
+    // Tính toán màu chữ tương phản
+    let r = parseInt(themeColor.slice(1,3), 16);
+    let g = parseInt(themeColor.slice(3,5), 16);
+    let b = parseInt(themeColor.slice(5,7), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    root.style.setProperty('--text-on-theme', brightness > 150 ? '#111111' : '#ffffff');
+    
     localStorage.setItem('themeColor', themeColor);
-}
+} // end function applyTheme
 
 function loadTheme() {
     const savedDark = localStorage.getItem('darkMode');
-    const isDark = savedDark !== null ? savedDark === 'true' : true; 
+    const isDark = savedDark !== null ? savedDark === 'true' : true;
     
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    if (document.getElementById('darkModeToggle')) document.getElementById('darkModeToggle').checked = isDark;
+    const toggle = document.getElementById('darkModeToggle');
+    if (toggle) toggle.checked = isDark;
     
     let savedColor = localStorage.getItem('themeColor') || "#8BC34A";
-    if (document.getElementById("setting-color")) {
-        document.getElementById("setting-color").value = savedColor;
+    const colorSelect = document.getElementById("setting-color");
+    if (colorSelect) {
+        colorSelect.value = savedColor;
     }
     applyTheme();
-}
+} // end function loadTheme
 
-// ==========================================================================
-// ĐỒNG BỘ TOÀN DIỆN (FULL SYSTEM SYNC)
-// ==========================================================================
+// =========================================================================
+// ĐỒNG BỘ TOÀN DIỆN
+// =========================================================================
 function syncAllDataFromSheet() {
-    if (!navigator.onLine) { alert("Thiết bị đang ngoại tuyến!"); return; }
-    const syncBtn = document.getElementById("btn-sync-data"); 
-    const originalText = syncBtn.innerHTML;
+    if (!navigator.onLine) {
+        alert("Thiết bị đang ngoại tuyến! Vui lòng kết nối mạng để đồng bộ.");
+        return;
+    }
     
-    syncBtn.disabled = true; 
-    syncBtn.innerHTML = "⏳ Đang đồng bộ toàn diện..."; 
+    const syncBtn = document.getElementById("btn-sync-data");
+    const originalText = syncBtn.innerHTML;
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = "⏳ Đang đồng bộ...";
     syncBtn.style.opacity = "0.7";
 
+    // Bước 1: Đồng bộ transactions local lên sheet
     getAllTransactions(localTransactions => {
         const unsynced = localTransactions.filter(t => t.synced === 0);
         
-        const proceedToDownload = () => {
+        // Bước 2: Tải dữ liệu mới từ sheet
+        const downloadData = () => {
             fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
-            .then(res => res.json())
-            .then(resData => {
-                if (resData.status === "success" && resData.data) {
-                    const serverFamily = resData.data.family || [];
-                    const serverTransactions = resData.data.transactions || [];
-                    const serverReminders = resData.data.reminders || [];
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData.status === "success" && resData.data) {
+                        const serverFamily = resData.data.family || [];
+                        const serverTransactions = resData.data.transactions || [];
+                        const serverReminders = resData.data.reminders || [];
 
-                    localFamilyData = serverFamily;
-                    if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "family_data", value: serverFamily });
+                        // Cập nhật family data
+                        localFamilyData = serverFamily;
+                        if (db) {
+                            db.transaction("settings", "readwrite")
+                              .objectStore("settings")
+                              .put({ key: "family_data", value: serverFamily });
+                        }
 
-                    if (db && serverTransactions.length > 0) {
-                        const tx = db.transaction("transactions", "readwrite");
-                        const store = tx.objectStore("transactions");
-                        serverTransactions.forEach(sTx => {
-                            const isDuplicate = localTransactions.some(lTx => 
-                                lTx.timestamp === sTx.timestamp && parseFloat(lTx.amount) === parseFloat(sTx.amount)
-                            );
-                            if (!isDuplicate) { sTx.synced = 1; store.add(sTx); }
-                        });
+                        // Cập nhật transactions
+                        if (db && serverTransactions.length > 0) {
+                            const tx = db.transaction("transactions", "readwrite");
+                            const store = tx.objectStore("transactions");
+                            serverTransactions.forEach(sTx => {
+                                // Kiểm tra trùng lặp bằng timestamp + amount + subtype
+                                const isDuplicate = localTransactions.some(lTx => 
+                                    lTx.timestamp === sTx.timestamp && 
+                                    parseFloat(lTx.amount) === parseFloat(sTx.amount) &&
+                                    lTx.subtype === sTx.subtype
+                                );
+                                if (!isDuplicate) {
+                                    sTx.synced = 1;
+                                    store.add(sTx);
+                                }
+                            });
+                        }
+
+                        // Cập nhật reminders
+                        if (db && serverReminders.length > 0) {
+                            const tx = db.transaction("reminders", "readwrite");
+                            const store = tx.objectStore("reminders");
+                            serverReminders.forEach(sRem => {
+                                const isDuplicate = localReminderData.some(lRem =>
+                                    lRem.startDate === sRem.ngayBatDau && 
+                                    lRem.content === sRem.noiDungNhac
+                                );
+                                if (!isDuplicate) {
+                                    store.add({
+                                        content: sRem.noiDungNhac,
+                                        startDate: sRem.ngayBatDau,
+                                        frequency: sRem.tanSuat || "ONCE",
+                                        status: sRem.trangThai || "ENABLED",
+                                        synced: 1
+                                    });
+                                }
+                            });
+                        }
+
+                        // Cập nhật thời gian sync
+                        const now = new Date();
+                        const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        const statusEl = document.getElementById("sync-status");
+                        if (statusEl) statusEl.innerHTML = `Last sync: ${timeString}`;
+                        if (db) {
+                            db.transaction("settings", "readwrite")
+                              .objectStore("settings")
+                              .put({ key: "last_sync_time", value: timeString });
+                        }
+                        
+                        alert("✅ Đồng bộ thành công!");
+                    } else {
+                        alert("⚠️ Đồng bộ xong nhưng định dạng dữ liệu không đúng.");
                     }
-
-                    if (db && serverReminders.length > 0) {
-                        const tx = db.transaction("reminders", "readwrite");
-                        const store = tx.objectStore("reminders");
-                        serverReminders.forEach(sRem => {
-                            const isDuplicate = localReminderData.some(lRem =>
-                                lRem.startDate === sRem.startDate && lRem.content === sRem.content
-                            );
-                            if (!isDuplicate) { sRem.synced = 1; store.add(sRem); }
-                        });
-                    }
-
-                    const now = new Date();
-                    const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                    if (document.getElementById("sync-status")) document.getElementById("sync-status").innerHTML = `Last sync: ${timeString}`;
-                    if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "last_sync_time", value: timeString });
-                    
-                    alert("✅ Đồng bộ thành công! Đã tải Thu/Chi, Nhắc Hẹn và Lý lịch gia đình mới nhất.");
-                } else alert("⚠️ Đồng bộ xong nhưng định dạng dữ liệu không đúng.");
-            })
-            .catch(() => { alert("❌ Lỗi kết nối! Không thể tải dữ liệu từ Google Sheet xuống."); })
-            .finally(() => {
-                syncBtn.disabled = false; syncBtn.innerHTML = originalText; syncBtn.style.opacity = "1";
-                initFormOptions(); renderChartsAndStats(); generateRemindersInterface();
-            });
+                })
+                .catch(err => {
+                    console.error("Sync error:", err);
+                    alert("❌ Lỗi kết nối! Không thể tải dữ liệu từ Google Sheet xuống.");
+                })
+                .finally(() => {
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = originalText;
+                    syncBtn.style.opacity = "1";
+                    initFormOptions();
+                    renderChartsAndStats();
+                    generateRemindersInterface();
+                });
         };
 
+        // Nếu có dữ liệu chưa sync, gửi lên trước
         if (unsynced.length > 0 && CONFIG.apiEndpoint) {
             fetch(CONFIG.apiEndpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'syncTransactions', data: unsynced })
+                body: JSON.stringify({
+                    action: 'syncTransactions',
+                    data: unsynced.map(t => ({
+                        timestamp: t.timestamp,
+                        type: t.type,
+                        subtype: t.subtype,
+                        amount: t.amount,
+                        note: t.note
+                    }))
+                })
             })
             .then(res => res.json())
             .then(resData => {
                 if (resData.status === "success") {
                     const tx = db.transaction("transactions", "readwrite");
                     const store = tx.objectStore("transactions");
-                    unsynced.forEach(t => { t.synced = 1; store.put(t); });
+                    unsynced.forEach(t => {
+                        t.synced = 1;
+                        store.put(t);
+                    });
                 }
-                proceedToDownload();
-            }).catch(() => { proceedToDownload(); });
-        } else proceedToDownload();
+                downloadData();
+            })
+            .catch(() => {
+                downloadData();
+            });
+        } else {
+            downloadData();
+        }
     });
-}
+} // end function syncAllDataFromSheet
 
 function resetAppCompletely() {
     if (!confirm("⚠️ Bạn có chắc chắn muốn xóa toàn bộ lịch sử thiết bị không?\nHành động này không thể hoàn tác!")) return;
     
+    // Tạo modal xác thực
     let mask = document.createElement('div');
     mask.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center;";
     
@@ -837,45 +1296,100 @@ function resetAppCompletely() {
     document.getElementById("btn-cancel-reset").onclick = () => mask.remove();
     document.getElementById("btn-confirm-reset").onclick = () => {
         const passVal = document.getElementById("secure-reset-pass").value;
-        if (!passVal.trim()) { alert("Vui lòng không để trống mật khẩu!"); return; }
+        if (!passVal.trim()) {
+            alert("Vui lòng không để trống mật khẩu!");
+            return;
+        }
         
         fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(passVal.trim())}`)
             .then(res => res.json())
             .then(res => {
                 if (res.status === "success" && res.match === true) {
-                    mask.remove(); localStorage.clear(); 
-                    if (window.indexedDB) indexedDB.deleteDatabase("FamilyFinancePWA");
-                    alert("🗑️ Đã xóa sạch dữ liệu thiết bị và đặt lại ứng dụng thành công!"); 
-                    window.location.reload(true); 
-                } else alert("❌ Mật khẩu xác nhận không chính xác!");
-            }).catch(() => { alert("Lỗi kết nối đến máy chủ xác thực!"); });
+                    mask.remove();
+                    localStorage.clear();
+                    if (window.indexedDB) {
+                        indexedDB.deleteDatabase("FamilyFinancePWA");
+                    }
+                    if (notificationCheckInterval) {
+                        clearInterval(notificationCheckInterval);
+                    }
+                    alert("🗑️ Đã xóa sạch dữ liệu thiết bị và đặt lại ứng dụng thành công!");
+                    window.location.reload(true);
+                } else {
+                    alert("❌ Mật khẩu xác nhận không chính xác!");
+                }
+            })
+            .catch(() => {
+                alert("Lỗi kết nối đến máy chủ xác thực!");
+            });
     };
-}
+} // end function resetAppCompletely
 
+// =========================================================================
+// SCROLL TO TOP
+// =========================================================================
 window.onscroll = function() {
     const btn = document.getElementById("scrollTopBtn");
-    if (btn) btn.style.display = (document.body.scrollTop > 250 || document.documentElement.scrollTop > 250) ? "flex" : "none";
+    if (btn) {
+        btn.style.display = (document.body.scrollTop > 250 || document.documentElement.scrollTop > 250) ? "flex" : "none";
+    }
 };
-function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+} // end function scrollToTop
+
+// =========================================================================
+// LOAD INITIAL SETTINGS
+// =========================================================================
 function loadInitialSettings() {
-    db.transaction("settings", "readonly").objectStore("settings").getAll().onsuccess = function(e) {
+    if (!db) return;
+    
+    const tx = db.transaction("settings", "readonly");
+    const store = tx.objectStore("settings");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
         const results = e.target.result || [];
+        
         const savedFamily = results.find(item => item.key === "family_data");
-        if (savedFamily) localFamilyData = savedFamily.value;
+        if (savedFamily) {
+            localFamilyData = savedFamily.value;
+        }
 
         const lastSync = results.find(item => item.key === "last_sync_time");
-        if (lastSync && document.getElementById("sync-status")) document.getElementById("sync-status").innerHTML = `Last sync: ${lastSync.value}`;
+        const statusEl = document.getElementById("sync-status");
+        if (lastSync && statusEl) {
+            statusEl.innerHTML = `Last sync: ${lastSync.value}`;
+        }
 
         loadTheme();
-        initFormOptions(); 
+        initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
     };
-}
+    
+    request.onerror = function(e) {
+        console.error("Lỗi load settings:", e.target.error);
+        loadTheme();
+        initFormOptions();
+        renderChartsAndStats();
+        generateRemindersInterface();
+    };
+} // end function loadInitialSettings
 
-// Khi tài liệu load xong, kích hoạt lắng nghe sự kiện
+// =========================================================================
+// KHỞI TẠO APP
+// =========================================================================
 document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
     initDB();
 });
+
+// Xử lý online/offline
+window.addEventListener('online', () => {
+    syncToGoogleSheets();
+    syncRemindersToSheet();
+});
+
+// end APP
