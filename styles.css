@@ -2,8 +2,8 @@
    1. KHAI BÁO BIẾN TOÀN CỤC (CSS VARIABLES)
    ========================================================================== */
 :root {
-    --theme-color: #e91e63;
-    --text-on-theme: #ffffff;
+    --theme-color: #FFC107;
+    --text-on-theme: #111111;
     
     --primary-bg: #ffffff;
     --secondary-bg: #f5f5f5;
@@ -56,13 +56,20 @@
     --stat-label-color: #999;
 }
 
+/* Theme màu vàng cho light mode */
 .theme-yellow {
+    --theme-color: #FFC107;
     --text-on-theme: #111111;
+    --header-bg: #FFC107;
+    --header-text: #111111;
 }
 
+/* Theme màu vàng cho dark mode */
 [data-theme="dark"].theme-yellow {
+    --theme-color: #FFC107;
     --text-on-theme: #111111;
-    --header-text: #111111;
+    --header-bg: #1a1a1a;
+    --header-text: #ffffff;
 }
 
 /* ==========================================================================
@@ -97,11 +104,6 @@ body {
     z-index: 100;
     box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-.header:not([data-theme="dark"]) {
-    background-color: var(--theme-color);
-    color: var(--text-on-theme);
 }
 
 /* ==========================================================================
