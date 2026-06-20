@@ -2,8 +2,8 @@
 // CẤU HÌNH APP
 // =========================================================================
 const CONFIG = {
-    googleSheetId: '19Tsmkh53nPAqhTYy2DU5dSfYXJRAwyc9VI0VaeM3LMw', 
-    apiEndpoint: 'https://script.google.com/macros/s/AKfycbxC72RzXFo9yG8iP9FRgyjY7sYhH_ffHxR1qkK0u5GbwFnmODsZ0E2_M_Hl38328S3T/exec' 
+    googleSheetId: '19Tsmkh53nPAqhTYy2DU5dSfYXJRAwyc9VI0VaeM3LMw',
+    apiEndpoint: 'https://script.google.com/macros/s/AKfycbxC72RzXFo9yG8iP9FRgyjY7sYhH_ffHxR1qkK0u5GbwFnmODsZ0E2_M_Hl38328S3T/exec'
 };
 
 const CATEGORIES = {
@@ -11,7 +11,7 @@ const CATEGORIES = {
         "Lương": ["Lương tháng", "Bổ sung lương", "Ứng lương", "Trực lễ tết", "Công tác phí", "Hoàn thuế"],
         "Thưởng": ["Bất thường", "Bổ sung thưởng", "Thưởng lễ tết", "Thưởng năm", "Thưởng quí"],
         "Phụ cấp": ["Mĩ phẩm", "Vệ sinh viên"],
-        "Phúc lợi": ["HSG", "Phụ nữ", "Sinh nhật", "Thiếu nhi"], 
+        "Phúc lợi": ["HSG", "Phụ nữ", "Sinh nhật", "Thiếu nhi"],
         "Thu khác": ["Bảo hiểm refund"],
         "Bất thường": ["Tặng cho", "Trúng số"],
         "CON CỢP": ["Lương tháng", "Bổ sung lương", "Bổ sung thưởng"]
@@ -29,9 +29,13 @@ const CATEGORIES = {
 
 const PALETTE = ["#4CAF50", "#8BC34A", "#2196F3", "#E91E63", "#9C27B0", "#F44336", "#FF9800", "#FFEB3B"];
 
+// Theme mặc định: Vàng (#FFC107) + Dark Mode bật sẵn (theo yêu cầu mục a)
+const DEFAULT_THEME_COLOR = "#FFC107";
+const DEFAULT_DARK_MODE = true;
+
 let db;
 let charts = {};
-let localFamilyData = []; 
+let localFamilyData = [];
 let localReminderData = [];
 let isSyncing = false;
 let notificationCheckInterval = null;
@@ -40,7 +44,7 @@ let notificationCheckInterval = null;
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
 function initDB() {
-    const request = indexedDB.open("FamilyFinancePWA", 3);
+    const request = indexedDB.open("FamilyFinancePWA", 4);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
         if (!db.objectStoreNames.contains("transactions")) {
@@ -63,6 +67,7 @@ function initDB() {
         console.error("Lỗi mở IndexedDB:", e.target.error);
     };
 } // end function initDB
+// end KHỞI TẠO INDEXEDDB
 
 // =========================================================================
 // KHỞI TẠO DOM EVENTS
@@ -101,6 +106,7 @@ function setupEventListeners() {
 
     document.getElementById("scrollTopBtn").addEventListener("click", scrollToTop);
 } // end function setupEventListeners
+// end KHỞI TẠO DOM EVENTS
 
 // =========================================================================
 // ĐIỀU HƯỚNG TABS
@@ -108,13 +114,13 @@ function setupEventListeners() {
 function switchTab(tabName) {
     document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
     document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
-    
+
     const targetTab = document.getElementById(`tab-${tabName}`);
     if (targetTab) targetTab.classList.add("active");
-    
+
     const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
     if (activeBtn) activeBtn.classList.add("active");
-    
+
     if (tabName === 'chi' || tabName === 'thongke') {
         renderChartsAndStats();
     }
@@ -125,6 +131,7 @@ function switchTab(tabName) {
         generateRemindersInterface();
     }
 } // end function switchTab
+// end ĐIỀU HƯỚNG TABS
 
 // =========================================================================
 // HÀM TIỆN ÍCH
@@ -148,10 +155,10 @@ function updateSubtypes(mode) {
     const typeSelect = document.getElementById(`${mode}-type`);
     const subtypeSelect = document.getElementById(`${mode}-subtype`);
     if (!typeSelect || !subtypeSelect) return;
-    
+
     const selectedType = typeSelect.value;
     subtypeSelect.innerHTML = "";
-    
+
     if (CATEGORIES[mode] && CATEGORIES[mode][selectedType]) {
         CATEGORIES[mode][selectedType].forEach(sub => {
             let opt = document.createElement("option");
@@ -166,7 +173,7 @@ function initFormOptions() {
     ['chi', 'thu'].forEach(mode => {
         const typeSelect = document.getElementById(`${mode}-type`);
         if (!typeSelect) return;
-        
+
         typeSelect.innerHTML = "";
         Object.keys(CATEGORIES[mode]).forEach(type => {
             let opt = document.createElement("option");
@@ -175,7 +182,7 @@ function initFormOptions() {
             typeSelect.appendChild(opt);
         });
         updateSubtypes(mode);
-        
+
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         const dateInput = document.getElementById(`${mode}-date`);
@@ -188,7 +195,7 @@ function initFormOptions() {
 function initColorSettings() {
     const sColor = document.getElementById("setting-color");
     if (!sColor || sColor.children.length > 0) return;
-    
+
     const textNames = ["Xanh Lá", "Xanh Bơ", "Xanh Dương", "Hồng", "Tím", "Đỏ", "Cam", "Vàng"];
     PALETTE.forEach((hex, i) => {
         let opt = document.createElement("option");
@@ -197,27 +204,30 @@ function initColorSettings() {
         sColor.appendChild(opt);
     });
 } // end function initColorSettings
+// end HÀM TIỆN ÍCH
 
 // =========================================================================
-// XỬ LÝ GIAO DỊCH (TRANSACTIONS)
+// XỬ LÝ GIAO DỊCH (TRANSACTIONS) - TAB THU / CHI
 // =========================================================================
 function saveTransaction(event, mode) {
     event.preventDefault();
-    
+
     const type = document.getElementById(`${mode}-type`).value;
     const subtype = document.getElementById(`${mode}-subtype`).value;
     let amount = parseCurrency(document.getElementById(`${mode}-amount`).value);
     const dateVal = document.getElementById(`${mode}-date`).value;
     const note = document.getElementById(`${mode}-note`).value;
-    
+
+    // Quy ước: tab Chi lưu số âm, tab Thu lưu số dương
     if (mode === 'chi') amount = -Math.abs(amount);
+    if (mode === 'thu') amount = Math.abs(amount);
 
     const transaction = {
         timestamp: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
         type: type,
         subtype: subtype,
         amount: amount,
-        note: note || "",
+        note: note || "", // Ghi chú luôn được lưu vào cột E (GHI CHÚ) khi đồng bộ lên sheet TRANSACTIONS
         synced: 0
     };
 
@@ -254,17 +264,17 @@ function getAllTransactions(callback) {
 
 function syncToGoogleSheets() {
     if (!navigator.onLine || isSyncing || !CONFIG.apiEndpoint) return;
-    
+
     getAllTransactions(transactions => {
         const unsynced = transactions.filter(t => t.synced === 0);
         if (unsynced.length === 0) return;
-        
+
         isSyncing = true;
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ 
-                action: 'syncTransactions', 
+            body: JSON.stringify({
+                action: 'syncTransactions',
                 data: unsynced.map(t => ({
                     timestamp: t.timestamp,
                     type: t.type,
@@ -292,24 +302,25 @@ function syncToGoogleSheets() {
         });
     });
 } // end function syncToGoogleSheets
+// end XỬ LÝ GIAO DỊCH (TRANSACTIONS)
 
 // =========================================================================
-// ĐỒ THỊ & THỐNG KÊ
+// ĐỒ THỊ & THỐNG KÊ - TAB CHI / THỐNG KÊ
 // =========================================================================
 function renderPieChart(canvasId, labels, dataset, customColors = null) {
     if (charts[canvasId]) {
         charts[canvasId].destroy();
         delete charts[canvasId];
     }
-    
+
     const canvasEl = document.getElementById(canvasId);
     if (!canvasEl) return;
-    
+
     const ctx = canvasEl.getContext('2d');
     let total = dataset.reduce((a, b) => a + Math.abs(b), 0);
     let defaultColors = ['#4CAF50', '#F44336', '#FF9800', '#2196F3', '#9C27B0', '#E91E63'];
     let colors = customColors || defaultColors;
-    
+
     charts[canvasId] = new Chart(ctx, {
         type: 'pie',
         data: {
@@ -354,7 +365,7 @@ function renderPieChart(canvasId, labels, dataset, customColors = null) {
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
-                            return ctx.label + ": " + Math.abs(ctx.raw).toLocaleString() + 
+                            return ctx.label + ": " + Math.abs(ctx.raw).toLocaleString() +
                                    " (" + (total > 0 ? (Math.abs(ctx.raw) / total * 100).toFixed(1) + "%" : "0%") + ")";
                         }
                     }
@@ -369,7 +380,7 @@ function renderChartsAndStats() {
         let totalThu = 0, totalChi = 0, sum_Tiger = 0, sum_Mine = 0;
         let catCurrentMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
         let catPrevMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
-        
+
         const now = new Date();
         const cM = now.getMonth();
         const cY = now.getFullYear();
@@ -394,7 +405,7 @@ function renderChartsAndStats() {
         } else if (expContainer) {
             expContainer.innerHTML = "Chưa có khoản chi nào.";
         }
-        
+
         const incContainer = document.getElementById("income-history-container");
         if (incList.length && incContainer) {
             let htmlThu = `<table class="history-table"><tbody>`;
@@ -412,7 +423,7 @@ function renderChartsAndStats() {
         data.forEach(t => {
             const tDate = new Date(t.timestamp);
             const amt = t.amount;
-            
+
             if (amt > 0) {
                 totalThu += amt;
                 if (t.type === "CON CỢP") sum_Tiger += amt;
@@ -420,7 +431,7 @@ function renderChartsAndStats() {
             } else {
                 totalChi += Math.abs(amt);
                 let absAmt = Math.abs(amt);
-                
+
                 if (tDate.getFullYear() === cY && tDate.getMonth() === cM) {
                     catCurrentMonth["Tổng"] += absAmt;
                     if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") {
@@ -476,10 +487,10 @@ function renderChartsAndStats() {
 function renderTopExpenses() {
     const periodSelect = document.getElementById("chi-top-period");
     if (!periodSelect) return;
-    
+
     const period = periodSelect.value;
     const now = new Date();
-    
+
     getAllTransactions(data => {
         let filtered = data.filter(t => t.amount < 0).filter(t => {
             let d = new Date(t.timestamp);
@@ -508,18 +519,18 @@ function renderTopExpenses() {
 
         const container = document.getElementById("top-expenses-list");
         if (!container) return;
-        
+
         if (sortedGroups.length === 0) {
             container.innerHTML = "<p>Không có dữ liệu chi tiêu.</p>";
             return;
         }
-        
+
         let html = '';
         sortedGroups.slice(0, 5).forEach((g, i) => {
             let parts = g.category.match(/^(.*?)\s*\((.*?)\)$/);
             let type = parts ? parts[1] : g.category;
             let subtype = parts ? parts[2] : '--';
-            
+
             html += `<div class="stat-row" style="display: grid; grid-template-columns: 30px 1fr 1fr 100px; gap: 8px; padding: 10px 4px; align-items: center;">
                 <span style="font-weight: bold; color: var(--text-color); opacity: 0.5;">${i+1}</span>
                 <span style="font-weight: 600; color: var(--theme-color);">${type}</span>
@@ -534,7 +545,7 @@ function renderTopExpenses() {
 function renderSection4(allData) {
     const periodSelect = document.getElementById("sec4-period");
     if (!periodSelect) return;
-    
+
     const period = periodSelect.value;
     const run = data => {
         const now = new Date();
@@ -542,18 +553,18 @@ function renderSection4(allData) {
         let totalThu = 0;
         let fullChi = 0;
         let investmentSavings = 0;
-        
+
         data.forEach(t => {
             let d = new Date(t.timestamp);
             currentBalance += t.amount;
-            
+
             let isMatch = false;
             if (period === 'month') {
                 isMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
             } else {
                 isMatch = d.getFullYear() === now.getFullYear();
             }
-            
+
             if (isMatch) {
                 if (t.amount > 0) {
                     totalThu += t.amount;
@@ -571,25 +582,26 @@ function renderSection4(allData) {
         document.getElementById("sec4-thu").textContent = formatVND(totalThu);
         document.getElementById("sec4-net-chi").textContent = formatVND(fullChi);
         document.getElementById("sec4-savings").textContent = formatVND(investmentSavings);
-        renderPieChart('chart-sec4-pie', ['Tổng Thu', 'Tổng Chi Thực Tế', 'Tiết Kiệm'], 
+        renderPieChart('chart-sec4-pie', ['Tổng Thu', 'Tổng Chi Thực Tế', 'Tiết Kiệm'],
                        [totalThu, fullChi, investmentSavings], ['#4CAF50', '#F44336', '#FFEB3B']);
     };
-    
+
     if (allData) {
         run(allData);
     } else {
         getAllTransactions(run);
     }
 } // end function renderSection4
+// end ĐỒ THỊ & THỐNG KÊ
 
 // =========================================================================
-// FAMILY - BẢO MẬT & HIỂN THỊ
+// FAMILY - BẢO MẬT & HIỂN THỊ - TAB FAMILY
 // =========================================================================
 function checkFamilyTabAccess() {
     const isUnlocked = localStorage.getItem("family_unlocked") === "true";
     const authView = document.getElementById("family-auth-view");
     const mainView = document.getElementById("family-main-view");
-    
+
     if (!authView || !mainView) return;
 
     if (isUnlocked) {
@@ -608,7 +620,8 @@ function verifyFamilyAuth() {
         alert("Vui lòng nhập mật khẩu!");
         return;
     }
-    
+
+    // Mật khẩu xác thực được kiểm tra với CONFIG_APP!A1 trên Google Sheet
     fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(inputPass.trim())}`)
         .then(res => res.json())
         .then(res => {
@@ -627,12 +640,12 @@ function verifyFamilyAuth() {
 function generateFamilyInterface() {
     const container = document.getElementById("family-buttons-container");
     if (!container) return;
-    
+
     if (localFamilyData && localFamilyData.length > 0) {
         renderFamilyGrid(localFamilyData);
         return;
     }
-    
+
     container.innerHTML = "<p style='color: #aaa; text-align: center;'>🔄 Đang tải dữ liệu...</p>";
     fetch(`${CONFIG.apiEndpoint}?action=getFamilyData`)
         .then(res => res.json())
@@ -657,13 +670,13 @@ function generateFamilyInterface() {
 function renderFamilyGrid(members) {
     const container = document.getElementById("family-buttons-container");
     if (!container) return;
-    
+
     container.innerHTML = "";
-    
+
     members.forEach(m => {
         const displayName = m.nickname && m.nickname !== "-" ? m.nickname : (m.fullname || "Thành viên");
         if (displayName.toUpperCase() === "NICKNAME") return;
-        
+
         let btn = document.createElement("button");
         btn.className = "member-btn";
         btn.textContent = displayName;
@@ -694,19 +707,19 @@ function showFamilyModal(m) {
         { l: "LLTP: Ngày cấp", v: m.lltp?.ngaycap || "-" },
         { l: "LLTP: Nơi cấp", v: m.lltp?.noicap || "-" }
     ];
-    
+
     const detailsDiv = document.getElementById("modal-member-details");
     if (!detailsDiv) return;
-    
+
     detailsDiv.innerHTML = "";
     let fullBlockText = "";
     let lastGroup = "";
-    
+
     fields.forEach(f => {
         fullBlockText += `${f.l}: ${f.v}\n`;
         let currentGroup = "";
         let cleanLabel = f.l;
-        
+
         if (f.l.startsWith("CCCD:")) {
             currentGroup = "CCCD";
             cleanLabel = f.l.replace("CCCD:", "").trim();
@@ -734,7 +747,7 @@ function showFamilyModal(m) {
             if (!currentGroup) lastGroup = "";
             row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}</div>`;
         }
-        
+
         row.onclick = () => {
             if (f.v !== "-") {
                 navigator.clipboard.writeText(f.v).then(() => {
@@ -752,7 +765,7 @@ function showFamilyModal(m) {
         };
         detailsDiv.appendChild(row);
     });
-    
+
     document.getElementById("btn-copy-all").onclick = () => {
         navigator.clipboard.writeText(fullBlockText).then(() => {
             alert("Đã copy toàn bộ thông tin lí lịch!");
@@ -766,17 +779,34 @@ function showFamilyModal(m) {
             alert("Đã copy toàn bộ thông tin lí lịch!");
         });
     };
-    
+
     document.getElementById("familyModal").style.display = "flex";
 } // end function showFamilyModal
 
 function closeModal() {
     document.getElementById("familyModal").style.display = "none";
 } // end function closeModal
+// end FAMILY - BẢO MẬT & HIỂN THỊ
 
 // =========================================================================
-// NHẮC HẸN
+// NHẮC HẸN - TAB NHẮC HẸN
 // =========================================================================
+// Cấu trúc 1 reminder lưu cục bộ (IndexedDB "reminders"):
+//   content            : Nội dung nhắc hẹn
+//   frequency          : "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM"
+//   everyValue         : số lượng (chỉ dùng khi frequency = CUSTOM)
+//   everyUnit          : "DAYS" | "WEEKS" | "MONTHS" (chỉ dùng khi frequency = CUSTOM)
+//   startDate          : Ngày bắt đầu (yyyy-MM-dd)
+//   status             : "ENABLED" | "DISABLED"
+//   nextReminderDate   : Ngày nhắc tiếp theo (yyyy-MM-dd) - được tính lại sau mỗi lần nhắc
+//   lastTriggeredAt    : Lần nhắc cuối (ISO datetime) - thời điểm thông báo đẩy gần nhất
+//   synced             : 0 = chưa đồng bộ lên sheet REMINDERS, 1 = đã đồng bộ
+//
+// Khi ghi lên sheet REMINDERS, thứ tự cột là:
+//   A.NỘI DUNG NHẮC | B.TẦN SUẤT | C.NGÀY BẮT ĐẦU | D.TRẠNG THÁI | E.NGÀY NHẮC TIẾP THEO | F.LẦN NHẮC CUỐI
+// Với CUSTOM, cột TẦN SUẤT được mã hóa thành "CUSTOM:<everyValue>:<everyUnit>" (ví dụ "CUSTOM:2:WEEKS")
+// để không cần thêm cột riêng, và được tách lại khi đọc dữ liệu về app.
+
 function initReminderDateOptions() {
     const dSel = document.getElementById("rem-day");
     const mSel = document.getElementById("rem-month");
@@ -786,14 +816,14 @@ function initReminderDateOptions() {
     dSel.innerHTML = "";
     mSel.innerHTML = "";
     ySel.innerHTML = "";
-    
+
     for (let i = 1; i <= 31; i++) {
         dSel.innerHTML += `<option value="${i}">${String(i).padStart(2,'0')}</option>`;
     }
     for (let i = 1; i <= 12; i++) {
         mSel.innerHTML += `<option value="${i}">Tháng ${String(i).padStart(2,'0')}</option>`;
     }
-    
+
     const currYear = new Date().getFullYear();
     for (let i = currYear; i <= currYear + 5; i++) {
         ySel.innerHTML += `<option value="${i}">Năm ${i}</option>`;
@@ -829,36 +859,75 @@ function triggerPushNotification(title, body) {
     }
 } // end function triggerPushNotification
 
+// Tính ngày nhắc kế tiếp dựa trên tần suất, dùng để cập nhật "NGÀY NHẮC TIẾP THEO"
+// sau khi một lần nhắc (cho ngày hiện tại) đã được kích hoạt.
+function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) {
+    const d = new Date(fromDateStr);
+    d.setHours(0, 0, 0, 0);
+
+    if (frequency === "DAILY") {
+        d.setDate(d.getDate() + 1);
+    } else if (frequency === "WEEKLY") {
+        d.setDate(d.getDate() + 7);
+    } else if (frequency === "MONTHLY") {
+        d.setMonth(d.getMonth() + 1);
+    } else if (frequency === "CUSTOM") {
+        const n = parseInt(everyValue) || 1;
+        if (everyUnit === "DAYS") d.setDate(d.getDate() + n);
+        else if (everyUnit === "WEEKS") d.setDate(d.getDate() + (n * 7));
+        else if (everyUnit === "MONTHS") d.setMonth(d.getMonth() + n);
+    } else {
+        // ONCE: không có ngày kế tiếp
+        return null;
+    }
+
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+} // end function computeNextReminderDate
+
 function saveReminder(event) {
     event.preventDefault();
-    
+
     const content = document.getElementById("rem-content").value.trim();
     const day = document.getElementById("rem-day").value;
     const month = document.getElementById("rem-month").value;
     const year = document.getElementById("rem-year").value;
     const frequency = document.getElementById("rem-frequency").value;
-    
+    const everyVal = document.getElementById("rem-every-val").value;
+    const everyUnit = document.getElementById("rem-every-unit").value;
+
     if (!content) {
         alert("Vui lòng nhập nội dung nhắc hẹn!");
         return;
     }
-    
+
+    if (frequency === "CUSTOM" && (!everyVal || parseInt(everyVal) < 1)) {
+        alert("Vui lòng nhập số lượng hợp lệ cho tần suất tùy chỉnh!");
+        return;
+    }
+
     const startDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    
+
     const reminderItem = {
         content: content,
         startDate: startDateStr,
         frequency: frequency,
+        everyValue: frequency === "CUSTOM" ? parseInt(everyVal) : null,
+        everyUnit: frequency === "CUSTOM" ? everyUnit : null,
+        nextReminderDate: startDateStr, // Lần đầu, ngày nhắc tiếp theo = ngày bắt đầu
+        lastTriggeredAt: "",
         synced: 0,
         status: "ENABLED"
     };
 
     console.log("Lưu reminder:", reminderItem);
-    
+
     const tx = db.transaction("reminders", "readwrite");
     const store = tx.objectStore("reminders");
     const request = store.add(reminderItem);
-    
+
     request.onsuccess = function(e) {
         console.log("Reminder đã lưu với id:", e.target.result);
         alert("Đã thêm nhắc hẹn cục bộ!");
@@ -866,11 +935,11 @@ function saveReminder(event) {
         toggleCustomReminderFields();
         initReminderDateOptions();
         generateRemindersInterface();
-        
+
         // Gọi sync ngay lập tức
         syncRemindersToSheet();
     };
-    
+
     request.onerror = function(e) {
         console.error("Lỗi lưu reminder:", e.target.error);
         alert("Lỗi lưu nhắc hẹn: " + e.target.error);
@@ -880,16 +949,16 @@ function saveReminder(event) {
 function generateRemindersInterface() {
     const container = document.getElementById("reminder-list-container");
     if (!container) return;
-    
+
     if (!db) {
         container.innerHTML = "Lỗi cơ sở dữ liệu.";
         return;
     }
-    
+
     const tx = db.transaction("reminders", "readonly");
     const store = tx.objectStore("reminders");
     const request = store.getAll();
-    
+
     request.onsuccess = function(e) {
         const list = e.target.result || [];
         localReminderData = list;
@@ -905,48 +974,43 @@ function generateRemindersInterface() {
 function renderRemindersList(list) {
     const container = document.getElementById("reminder-list-container");
     if (!container) return;
-    
+
     if (list.length === 0) {
         container.innerHTML = "<p style='color: #aaa; text-align: center;'>📭 Chưa có lịch nhắc hẹn nào.</p>";
         return;
     }
 
     const sortedList = [...list].sort((a, b) => {
-        if (a.startDate < b.startDate) return -1;
-        if (a.startDate > b.startDate) return 1;
+        const aDate = a.nextReminderDate || a.startDate;
+        const bDate = b.nextReminderDate || b.startDate;
+        if (aDate < bDate) return -1;
+        if (aDate > bDate) return 1;
         return 0;
     });
 
-    let html = `<table class="history-table"><thead><tr><th>Nội dung</th><th>Ngày bắt đầu</th><th>Tần suất</th><th>Trạng thái</th></tr></thead><tbody>`;
-    
+    let html = `<table class="history-table"><thead><tr><th>Nội dung</th><th>Ngày nhắc tiếp theo</th><th>Tần suất</th><th>Trạng thái</th></tr></thead><tbody>`;
+
     sortedList.forEach(r => {
-        let freqText = r.frequency || "ONCE";
-        const freqMap = {
-            'ONCE': 'Một lần',
-            'DAILY': 'Hàng ngày',
-            'WEEKLY': 'Hàng tuần',
-            'MONTHLY': 'Hàng tháng',
-            'CUSTOM': 'Tùy chỉnh'
-        };
-        freqText = freqMap[freqText] || freqText;
-        
-        let displayDate = r.startDate;
-        if (r.startDate) {
-            let parts = r.startDate.split("-");
+        let freqText = formatFrequencyLabel(r);
+
+        let displayDateSource = r.nextReminderDate || r.startDate;
+        let displayDate = displayDateSource;
+        if (displayDateSource) {
+            let parts = displayDateSource.split("-");
             if (parts.length === 3) {
                 displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
             }
         }
-        
+
         let statusColor = r.status === "ENABLED" ? "var(--success-color)" : "var(--danger-color)";
         let statusText = r.status === "ENABLED" ? "✅ Hoạt động" : "⛔ Tắt";
-        
+
         const today = new Date();
         today.setHours(0,0,0,0);
-        const remDate = new Date(r.startDate);
+        const remDate = new Date(displayDateSource);
         remDate.setHours(0,0,0,0);
-        let isPast = remDate < today && r.frequency !== "ONCE";
-        
+        let isPast = remDate < today && r.frequency === "ONCE";
+
         html += `<tr style="${isPast ? 'opacity:0.5;' : ''}">
             <td style="font-weight:600; color:var(--theme-color);">${r.content}</td>
             <td>${displayDate} ${isPast ? '<span style="color:#999;font-size:0.8rem;">(đã qua)</span>' : ''}</td>
@@ -958,47 +1022,102 @@ function renderRemindersList(list) {
     container.innerHTML = html;
 } // end function renderRemindersList
 
+// Hiển thị nhãn tần suất dễ đọc, gồm cả trường hợp CUSTOM (ví dụ "Mỗi 2 Tuần")
+function formatFrequencyLabel(r) {
+    const freqMap = {
+        'ONCE': 'Một lần',
+        'DAILY': 'Hàng ngày',
+        'WEEKLY': 'Hàng tuần',
+        'MONTHLY': 'Hàng tháng'
+    };
+    if (r.frequency === "CUSTOM") {
+        const unitMap = { 'DAYS': 'Ngày', 'WEEKS': 'Tuần', 'MONTHS': 'Tháng' };
+        const unitText = unitMap[r.everyUnit] || r.everyUnit || '';
+        return `Mỗi ${r.everyValue || 1} ${unitText}`;
+    }
+    return freqMap[r.frequency] || r.frequency || "ONCE";
+} // end function formatFrequencyLabel
+
+// Kiểm tra danh sách nhắc hẹn mỗi ngày: nếu hôm nay là 1 ngày TRƯỚC ngày cần nhắc
+// thì tạo thông báo đẩy báo trước; đến đúng ngày cần nhắc thì tạo thông báo đẩy lần nữa.
+// Sau khi đến đúng ngày và đã nhắc, tự động tính lại "NGÀY NHẮC TIẾP THEO" cho các tần suất lặp lại.
 function checkAndTriggerReminders(reminders) {
     const today = new Date();
     today.setHours(0,0,0,0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+    const todayStr = formatDateOnly(today);
+    const tomorrowStr = formatDateOnly(tomorrow);
+
+    let hasChanges = false;
+
     reminders.forEach(r => {
         if (r.status === "DISABLED") return;
-        
-        const startRemDate = new Date(r.startDate);
-        startRemDate.setHours(0,0,0,0);
-        
-        if (startRemDate < today && r.frequency !== "ONCE") return;
-        if (r.frequency === "ONCE" && startRemDate < today) return;
-        
-        if (startRemDate.getTime() === today.getTime()) {
-            triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
-        } 
-        else if (startRemDate.getTime() === tomorrow.getTime()) {
+
+        const targetDateStr = r.nextReminderDate || r.startDate;
+        if (!targetDateStr) return;
+
+        const targetDate = new Date(targetDateStr);
+        targetDate.setHours(0,0,0,0);
+
+        // Nhắc hẹn ONCE đã qua ngày thì không xử lý nữa
+        if (r.frequency === "ONCE" && targetDate < today) return;
+
+        const alreadyTriggeredToday = r.lastTriggeredAt && r.lastTriggeredAt.slice(0, 10) === todayStr;
+
+        if (targetDateStr === tomorrowStr) {
+            // Nhắc trước 1 ngày
             triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
         }
-        
-        if (r.frequency === "DAILY" || r.frequency === "WEEKLY" || r.frequency === "MONTHLY") {
-            const diffDays = Math.floor((today - startRemDate) / (1000 * 60 * 60 * 24));
-            
-            if (r.frequency === "DAILY" && diffDays > 0 && diffDays % 1 === 0) {
-                triggerPushNotification("🔄 NHẮC HÀNG NGÀY", r.content);
-            } else if (r.frequency === "WEEKLY" && diffDays > 0 && diffDays % 7 === 0) {
-                triggerPushNotification("🔄 NHẮC HÀNG TUẦN", r.content);
-            } else if (r.frequency === "MONTHLY" && diffDays > 0 && diffDays % 30 === 0) {
-                triggerPushNotification("🔄 NHẮC HÀNG THÁNG", r.content);
+
+        if (targetDateStr === todayStr && !alreadyTriggeredToday) {
+            // Đúng ngày cần nhắc: tạo thông báo đẩy và cập nhật LẦN NHẮC CUỐI
+            triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
+
+            r.lastTriggeredAt = new Date().toISOString();
+            r.synced = 0;
+            hasChanges = true;
+
+            if (r.frequency === "ONCE") {
+                // Một lần thì tắt sau khi đã nhắc
+                r.status = "DISABLED";
+            } else {
+                // Các tần suất lặp lại: tính lại ngày nhắc tiếp theo
+                const nextDate = computeNextReminderDate(todayStr, r.frequency, r.everyValue, r.everyUnit);
+                if (nextDate) r.nextReminderDate = nextDate;
             }
+
+            updateReminderInDB(r);
         }
     });
+
+    if (hasChanges) {
+        renderRemindersList(reminders);
+    }
 } // end function checkAndTriggerReminders
+
+function formatDateOnly(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+} // end function formatDateOnly
+
+function updateReminderInDB(reminderItem) {
+    if (!db || !reminderItem.id) return;
+    const tx = db.transaction("reminders", "readwrite");
+    tx.objectStore("reminders").put(reminderItem);
+    tx.oncomplete = function() {
+        syncRemindersToSheet();
+    };
+} // end function updateReminderInDB
 
 function startDailyReminderCheck() {
     if (notificationCheckInterval) {
         clearInterval(notificationCheckInterval);
     }
-    
+
+    // Kiểm tra định kỳ mỗi 30 phút trong lúc app đang mở (đại diện cho việc "đọc dữ liệu hàng ngày")
     notificationCheckInterval = setInterval(() => {
         if (db) {
             const tx = db.transaction("reminders", "readonly");
@@ -1010,52 +1129,54 @@ function startDailyReminderCheck() {
             };
         }
     }, 30 * 60 * 1000);
-    
+
     setTimeout(() => {
         generateRemindersInterface();
     }, 3000);
 } // end function startDailyReminderCheck
+// end NHẮC HẸN
 
 // =========================================================================
-// SYNC REMINDERS TO SHEET - ĐÃ SỬA
+// ĐỒNG BỘ NHẮC HẸN LÊN GOOGLE SHEET (REMINDERS)
 // =========================================================================
 function syncRemindersToSheet() {
     if (!navigator.onLine || !CONFIG.apiEndpoint) {
         console.log("Không thể sync: offline hoặc không có endpoint");
         return;
     }
-    
+
     if (!db) {
         console.log("Chưa có database");
         return;
     }
-    
+
     const tx = db.transaction("reminders", "readonly");
     const store = tx.objectStore("reminders");
     const request = store.getAll();
-    
+
     request.onsuccess = function(e) {
         const list = e.target.result || [];
         const unsynced = list.filter(r => r.synced === 0);
-        
+
         console.log("Số lượng reminder chưa sync:", unsynced.length);
-        
+
         if (unsynced.length === 0) return;
 
-        // Chuyển đổi dữ liệu sang định dạng đúng cho Google Sheet
+        // Mã hóa CUSTOM thành "CUSTOM:<n>:<unit>" để ghi gọn vào 1 cột TẦN SUẤT trên sheet
         const dataToSend = unsynced.map(r => ({
-            ngayCanNhac: r.startDate || "",
-            noiDungNhac: r.content || "",
-            tanSuat: r.frequency || "ONCE",
-            ngayBatDau: r.startDate || "",
-            trangThai: r.status || "ENABLED"
+            content: r.content || "",
+            frequency: encodeFrequencyForSheet(r),
+            startDate: r.startDate || "",
+            status: r.status || "ENABLED",
+            nextReminderDate: r.nextReminderDate || r.startDate || "",
+            lastTriggeredAt: r.lastTriggeredAt || ""
         }));
-        
+
         console.log("Dữ liệu gửi lên server:", JSON.stringify(dataToSend));
-        
+
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'text/plain;charset=utf-8'
             },
             body: JSON.stringify({
@@ -1085,19 +1206,41 @@ function syncRemindersToSheet() {
             console.error("Lỗi fetch syncReminders:", err);
         });
     };
-    
+
     request.onerror = function(e) {
         console.error("Lỗi đọc reminders từ IndexedDB:", e.target.error);
     };
 } // end function syncRemindersToSheet
 
+// Mã hóa tần suất CUSTOM thành chuỗi "CUSTOM:<n>:<unit>" để lưu gọn trong 1 cột trên sheet
+function encodeFrequencyForSheet(r) {
+    if (r.frequency === "CUSTOM") {
+        return `CUSTOM:${r.everyValue || 1}:${r.everyUnit || 'DAYS'}`;
+    }
+    return r.frequency || "ONCE";
+} // end function encodeFrequencyForSheet
+
+// Giải mã chuỗi tần suất đọc từ sheet về lại { frequency, everyValue, everyUnit }
+function decodeFrequencyFromSheet(rawFrequency) {
+    if (rawFrequency && rawFrequency.toString().startsWith("CUSTOM:")) {
+        const parts = rawFrequency.toString().split(":");
+        return {
+            frequency: "CUSTOM",
+            everyValue: parseInt(parts[1]) || 1,
+            everyUnit: parts[2] || "DAYS"
+        };
+    }
+    return { frequency: rawFrequency || "ONCE", everyValue: null, everyUnit: null };
+} // end function decodeFrequencyFromSheet
+// end ĐỒNG BỘ NHẮC HẸN LÊN GOOGLE SHEET
+
 // =========================================================================
-// CÀI ĐẶT GIAO DIỆN (THEMES)
+// CÀI ĐẶT GIAO DIỆN (THEMES) - TAB SETTINGS
 // =========================================================================
 function toggleDarkMode(enable) {
     document.documentElement.setAttribute('data-theme', enable ? 'dark' : 'light');
     localStorage.setItem('darkMode', enable ? 'true' : 'false');
-    
+
     const colorInput = document.getElementById("setting-color");
     if (colorInput) {
         const slider = document.querySelector('.slider');
@@ -1108,54 +1251,138 @@ function toggleDarkMode(enable) {
 } // end function toggleDarkMode
 
 function applyTheme() {
-    const themeColor = document.getElementById("setting-color")?.value || "#FFC107";
+    const themeColor = document.getElementById("setting-color")?.value || DEFAULT_THEME_COLOR;
     const root = document.documentElement;
     root.style.setProperty('--theme-color', themeColor.toLowerCase());
     root.classList.toggle("theme-yellow", /yellow|#ffc107|#ffeb3b/i.test(themeColor));
-    
+
     let r = parseInt(themeColor.slice(1,3), 16);
     let g = parseInt(themeColor.slice(3,5), 16);
     let b = parseInt(themeColor.slice(5,7), 16);
     const brightness = (r * 299 + g * 587 + b * 114) / 1000;
     root.style.setProperty('--text-on-theme', brightness > 150 ? '#111111' : '#ffffff');
-    
+
     localStorage.setItem('themeColor', themeColor);
 } // end function applyTheme
 
 function loadTheme() {
+    // Theme mặc định: Vàng + Dark Mode (theo yêu cầu mục a), chỉ ghi đè nếu user đã từng đổi
     const savedDark = localStorage.getItem('darkMode');
-    const isDark = savedDark !== null ? savedDark === 'true' : true;
-    
+    const isDark = savedDark !== null ? savedDark === 'true' : DEFAULT_DARK_MODE;
+
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     const toggle = document.getElementById('darkModeToggle');
     if (toggle) toggle.checked = isDark;
-    
-    let savedColor = localStorage.getItem('themeColor') || "#FFC107";
+
+    let savedColor = localStorage.getItem('themeColor') || DEFAULT_THEME_COLOR;
     const colorSelect = document.getElementById("setting-color");
     if (colorSelect) {
         colorSelect.value = savedColor;
     }
     applyTheme();
 } // end function loadTheme
+// end CÀI ĐẶT GIAO DIỆN (THEMES)
 
 // =========================================================================
-// ĐỒNG BỘ TOÀN DIỆN
+// ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS (Nút "Đồng bộ dữ liệu")
 // =========================================================================
+// Quy trình đồng bộ 2 chiều khi bấm nút Đồng bộ:
+//   1. Đẩy (upload) các giao dịch (TRANSACTIONS) và nhắc hẹn (REMINDERS) chưa đồng bộ từ thiết bị lên Google Sheet
+//   2. Sau khi đẩy xong, tải (download) toàn bộ dữ liệu TRANSACTIONS, REMINDERS, FAMILY mới nhất từ Google Sheet về app
 function syncAllDataFromSheet() {
     if (!navigator.onLine) {
         alert("Thiết bị đang ngoại tuyến! Vui lòng kết nối mạng để đồng bộ.");
         return;
     }
-    
+
     const syncBtn = document.getElementById("btn-sync-data");
     const originalText = syncBtn.innerHTML;
     syncBtn.disabled = true;
     syncBtn.innerHTML = "⏳ Đang đồng bộ...";
     syncBtn.style.opacity = "0.7";
 
+    // ---- BƯỚC 1: ĐẨY DỮ LIỆU THIẾT BỊ -> SHEET (TRANSACTIONS + REMINDERS) ----
     getAllTransactions(localTransactions => {
-        const unsynced = localTransactions.filter(t => t.synced === 0);
-        
+        const unsyncedTx = localTransactions.filter(t => t.synced === 0);
+
+        const pushTransactions = () => new Promise(resolve => {
+            if (unsyncedTx.length === 0 || !CONFIG.apiEndpoint) {
+                resolve();
+                return;
+            }
+            fetch(CONFIG.apiEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'syncTransactions',
+                    data: unsyncedTx.map(t => ({
+                        timestamp: t.timestamp,
+                        type: t.type,
+                        subtype: t.subtype,
+                        amount: t.amount,
+                        note: t.note
+                    }))
+                })
+            })
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.status === "success") {
+                    const tx = db.transaction("transactions", "readwrite");
+                    const store = tx.objectStore("transactions");
+                    unsyncedTx.forEach(t => {
+                        t.synced = 1;
+                        store.put(t);
+                    });
+                }
+                resolve();
+            })
+            .catch(() => resolve());
+        });
+
+        const pushReminders = () => new Promise(resolve => {
+            const tx = db.transaction("reminders", "readonly");
+            const store = tx.objectStore("reminders");
+            const req = store.getAll();
+            req.onsuccess = function(e) {
+                const list = e.target.result || [];
+                const unsyncedRem = list.filter(r => r.synced === 0);
+                if (unsyncedRem.length === 0 || !CONFIG.apiEndpoint) {
+                    resolve();
+                    return;
+                }
+                fetch(CONFIG.apiEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'syncReminders',
+                        data: unsyncedRem.map(r => ({
+                            content: r.content || "",
+                            frequency: encodeFrequencyForSheet(r),
+                            startDate: r.startDate || "",
+                            status: r.status || "ENABLED",
+                            nextReminderDate: r.nextReminderDate || r.startDate || "",
+                            lastTriggeredAt: r.lastTriggeredAt || ""
+                        }))
+                    })
+                })
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData.status === "success") {
+                        const tx2 = db.transaction("reminders", "readwrite");
+                        const store2 = tx2.objectStore("reminders");
+                        unsyncedRem.forEach(r => {
+                            r.synced = 1;
+                            store2.put(r);
+                        });
+                    }
+                    resolve();
+                })
+                .catch(() => resolve());
+            };
+            req.onerror = () => resolve();
+        });
+
+        // ---- BƯỚC 2: TẢI DỮ LIỆU SHEET -> THIẾT BỊ (TRANSACTIONS + REMINDERS + FAMILY) ----
         const downloadData = () => {
             fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
                 .then(res => res.json())
@@ -1165,7 +1392,7 @@ function syncAllDataFromSheet() {
                         const serverTransactions = resData.data.transactions || [];
                         const serverReminders = resData.data.reminders || [];
 
-                        // Cập nhật family
+                        // Cập nhật FAMILY
                         localFamilyData = serverFamily;
                         if (db) {
                             db.transaction("settings", "readwrite")
@@ -1173,13 +1400,13 @@ function syncAllDataFromSheet() {
                               .put({ key: "family_data", value: serverFamily });
                         }
 
-                        // Cập nhật transactions
+                        // Cập nhật TRANSACTIONS (chỉ thêm các giao dịch chưa có cục bộ)
                         if (db && serverTransactions.length > 0) {
                             const tx = db.transaction("transactions", "readwrite");
                             const store = tx.objectStore("transactions");
                             serverTransactions.forEach(sTx => {
-                                const isDuplicate = localTransactions.some(lTx => 
-                                    lTx.timestamp === sTx.timestamp && 
+                                const isDuplicate = localTransactions.some(lTx =>
+                                    lTx.timestamp === sTx.timestamp &&
                                     parseFloat(lTx.amount) === parseFloat(sTx.amount) &&
                                     lTx.subtype === sTx.subtype
                                 );
@@ -1190,26 +1417,31 @@ function syncAllDataFromSheet() {
                             });
                         }
 
-                        // Cập nhật reminders
+                        // Cập nhật REMINDERS (chỉ thêm các nhắc hẹn chưa có cục bộ, giải mã CUSTOM)
                         if (db && serverReminders.length > 0) {
                             const tx = db.transaction("reminders", "readwrite");
                             const store = tx.objectStore("reminders");
-                            
+
                             const getExisting = store.getAll();
                             getExisting.onsuccess = function(e) {
                                 const existingList = e.target.result || [];
-                                
+
                                 serverReminders.forEach(sRem => {
                                     const isDuplicate = existingList.some(lRem =>
-                                        lRem.startDate === sRem.ngayBatDau && 
-                                        lRem.content === sRem.noiDungNhac
+                                        lRem.startDate === sRem.startDate &&
+                                        lRem.content === sRem.content
                                     );
                                     if (!isDuplicate) {
+                                        const decoded = decodeFrequencyFromSheet(sRem.frequency);
                                         store.add({
-                                            content: sRem.noiDungNhac,
-                                            startDate: sRem.ngayBatDau,
-                                            frequency: sRem.tanSuat || "ONCE",
-                                            status: sRem.trangThai || "ENABLED",
+                                            content: sRem.content,
+                                            startDate: sRem.startDate,
+                                            frequency: decoded.frequency,
+                                            everyValue: decoded.everyValue,
+                                            everyUnit: decoded.everyUnit,
+                                            status: sRem.status || "ENABLED",
+                                            nextReminderDate: sRem.nextReminderDate || sRem.startDate,
+                                            lastTriggeredAt: sRem.lastTriggeredAt || "",
                                             synced: 1
                                         });
                                     }
@@ -1226,7 +1458,7 @@ function syncAllDataFromSheet() {
                               .objectStore("settings")
                               .put({ key: "last_sync_time", value: timeString });
                         }
-                        
+
                         alert("✅ Đồng bộ thành công!");
                     } else {
                         alert("⚠️ Đồng bộ xong nhưng định dạng dữ liệu không đúng.");
@@ -1246,51 +1478,20 @@ function syncAllDataFromSheet() {
                 });
         };
 
-        if (unsynced.length > 0 && CONFIG.apiEndpoint) {
-            fetch(CONFIG.apiEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                    action: 'syncTransactions',
-                    data: unsynced.map(t => ({
-                        timestamp: t.timestamp,
-                        type: t.type,
-                        subtype: t.subtype,
-                        amount: t.amount,
-                        note: t.note
-                    }))
-                })
-            })
-            .then(res => res.json())
-            .then(resData => {
-                if (resData.status === "success") {
-                    const tx = db.transaction("transactions", "readwrite");
-                    const store = tx.objectStore("transactions");
-                    unsynced.forEach(t => {
-                        t.synced = 1;
-                        store.put(t);
-                    });
-                }
-                downloadData();
-            })
-            .catch(() => {
-                downloadData();
-            });
-        } else {
-            downloadData();
-        }
+        Promise.all([pushTransactions(), pushReminders()]).then(downloadData);
     });
 } // end function syncAllDataFromSheet
+// end ĐỒNG BỘ TOÀN DIỆN
 
 // =========================================================================
-// RESET APP
+// RESET APP - TAB SETTINGS (Nút "Xóa sạch dữ liệu & Đặt lại App")
 // =========================================================================
 function resetAppCompletely() {
     if (!confirm("⚠️ Bạn có chắc chắn muốn xóa toàn bộ lịch sử thiết bị không?\nHành động này không thể hoàn tác!")) return;
-    
+
     let mask = document.createElement('div');
     mask.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center;";
-    
+
     let box = document.createElement('div');
     box.className = "card";
     box.style = "width:90%;max-width:320px;padding:20px;text-align:center;background:var(--card-bg);color:var(--text-color);";
@@ -1306,7 +1507,7 @@ function resetAppCompletely() {
     mask.appendChild(box);
     document.body.appendChild(mask);
     document.getElementById("secure-reset-pass").focus();
-    
+
     document.getElementById("btn-cancel-reset").onclick = () => mask.remove();
     document.getElementById("btn-confirm-reset").onclick = () => {
         const passVal = document.getElementById("secure-reset-pass").value;
@@ -1314,7 +1515,8 @@ function resetAppCompletely() {
             alert("Vui lòng không để trống mật khẩu!");
             return;
         }
-        
+
+        // Mật khẩu phê duyệt xóa được kiểm tra với CONFIG_APP!A1 trên Google Sheet (dùng chung với mật khẩu tab FAMILY)
         fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(passVal.trim())}`)
             .then(res => res.json())
             .then(res => {
@@ -1338,6 +1540,7 @@ function resetAppCompletely() {
             });
     };
 } // end function resetAppCompletely
+// end RESET APP
 
 // =========================================================================
 // SCROLL TO TOP
@@ -1352,20 +1555,21 @@ window.onscroll = function() {
 function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 } // end function scrollToTop
+// end SCROLL TO TOP
 
 // =========================================================================
 // LOAD INITIAL SETTINGS
 // =========================================================================
 function loadInitialSettings() {
     if (!db) return;
-    
+
     const tx = db.transaction("settings", "readonly");
     const store = tx.objectStore("settings");
     const request = store.getAll();
-    
+
     request.onsuccess = function(e) {
         const results = e.target.result || [];
-        
+
         const savedFamily = results.find(item => item.key === "family_data");
         if (savedFamily) {
             localFamilyData = savedFamily.value;
@@ -1382,7 +1586,7 @@ function loadInitialSettings() {
         renderChartsAndStats();
         generateRemindersInterface();
     };
-    
+
     request.onerror = function(e) {
         console.error("Lỗi load settings:", e.target.error);
         loadTheme();
@@ -1391,6 +1595,7 @@ function loadInitialSettings() {
         generateRemindersInterface();
     };
 } // end function loadInitialSettings
+// end LOAD INITIAL SETTINGS
 
 // =========================================================================
 // KHỞI TẠO APP
@@ -1404,5 +1609,4 @@ window.addEventListener('online', () => {
     syncToGoogleSheets();
     syncRemindersToSheet();
 });
-
-// end APP
+// end KHỞI TẠO APP
