@@ -2,8 +2,8 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>APP CỦA TUI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TIỀN CỦA TÔI</title>
     <link rel="manifest" href="manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
@@ -12,9 +12,11 @@
    1. KHAI BÁO BIẾN TOÀN CỤC (CSS VARIABLES)
    ========================================================================== */
 :root {
-    --theme-color: #8BC34A; /* Mặc định Xanh Bơ theo thiết kế mới */
+    /* Theme colors - sẽ được JS cập nhật */
+    --theme-color: #e91e63;
     --text-on-theme: #ffffff;
     
+    /* System colors - MẶC ĐỊNH LIGHT MODE */
     --primary-bg: #ffffff;
     --secondary-bg: #f5f5f5;
     --text-color: #333333;
@@ -41,7 +43,7 @@
 }
 
 /* ==========================================================================
-   2. DARK MODE - GHI ĐÈ CÁC BIẾN
+   2. DARK MODE - GHI ĐÈ CÁC BIẾN (MẶC ĐỊNH BẬT)
    ========================================================================== */
 [data-theme="dark"] {
     --primary-bg: #121212;
@@ -66,9 +68,7 @@
     --stat-label-color: #999;
 }
 
-/* ==========================================================================
-   3. CHỐNG LÓA CHO MÀU VÀNG (CẢ LIGHT VÀ DARK)
-   ========================================================================== */
+/* Fix độ tương phản cho nhóm màu sáng như Vàng / Xanh bơ */
 .theme-yellow {
     --text-on-theme: #111111;
 }
@@ -79,7 +79,7 @@
 }
 
 /* ==========================================================================
-   4. RESET & BODY
+   3. RESET & BODY
    ========================================================================== */
 * {
     box-sizing: border-box;
@@ -92,11 +92,11 @@ body {
     background-color: var(--secondary-bg);
     color: var(--text-color);
     transition: background-color 0.3s ease, color 0.3s ease;
-    padding-bottom: calc(85px + env(safe-area-inset-bottom)); 
+    padding-bottom: calc(95px + env(safe-area-inset-bottom)); /* Khoảng đệm tránh bị che bởi thanh Floating Nav mới */
 }
 
 /* ==========================================================================
-   5. HEADER
+   4. HEADER
    ========================================================================== */
 .header {
     background-color: var(--header-bg);
@@ -112,36 +112,43 @@ body {
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.header:not([data-theme="dark"]) {
+    background-color: var(--theme-color);
+    color: var(--text-on-theme);
+}
+
 /* ==========================================================================
-   6. NAVIGATION TABS (Bottom)
+   5. NAVIGATION TABS (Sửa: Floating Menu cao cấp, chống tràn viền)
    ========================================================================== */
 .nav-tabs {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
+    bottom: 15px; /* Đẩy cao lên tạo hiệu ứng bay lơ lửng */
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 30px); /* Co lùi vào trong, tạo khoảng trống lề 15px mỗi bên */
+    max-width: 570px; /* Tương ứng chiều rộng tối đa (600px của card - 30px lề) */
     background-color: var(--nav-bg);
     display: flex;
     justify-content: space-around;
-    border-top: 1px solid var(--nav-border);
+    border: 1px solid var(--nav-border);
+    border-radius: 16px; /* Bo tròn toàn bộ 4 góc thành chiếc kén độc lập */
     z-index: 100;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     transition: background-color 0.3s ease, border-color 0.3s ease;
-    padding-bottom: env(safe-area-inset-bottom, 15px); 
+    padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .tab-btn {
     background: none;
     border: none;
     color: var(--tab-color);
-    padding: 15px 2px;
-    font-size: 0.85rem;
+    padding: 15px 5px;
+    font-size: 0.9rem;
     cursor: pointer;
     flex: 1;
     text-align: center;
     opacity: 0.6;
     transition: all 0.3s ease;
-    white-space: nowrap;
 }
 
 .tab-btn.active {
@@ -152,7 +159,7 @@ body {
 }
 
 /* ==========================================================================
-   7. TAB CONTENT
+   6. TAB CONTENT
    ========================================================================== */
 .tab-content {
     display: none;
@@ -166,7 +173,7 @@ body {
 }
 
 /* ==========================================================================
-   8. CARDS
+   7. CARDS
    ========================================================================== */
 .card {
     background-color: var(--card-bg);
@@ -185,7 +192,7 @@ body {
 }
 
 /* ==========================================================================
-   9. FORM
+   8. FORM
    ========================================================================== */
 .form-group {
     margin-bottom: 15px;
@@ -209,6 +216,15 @@ body {
     box-sizing: border-box;
     font-size: 1rem;
     transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+/* Sửa lỗi: Căn đều ô chọn thời gian (datetime-local) đồng bộ chiều dài hoàn hảo với controls khác */
+input[type="datetime-local"].form-control {
+    display: block;
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 47px;
 }
 
 .form-control:focus {
@@ -217,7 +233,7 @@ body {
 }
 
 /* ==========================================================================
-   10. BUTTONS
+   9. BUTTONS
    ========================================================================== */
 .btn {
     background-color: var(--theme-color) !important;
@@ -237,49 +253,39 @@ body {
     transform: scale(0.98);
 }
 
-.btn-status {
-    padding: 6px 12px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-}
-
-.btn-enabled {
-    background-color: rgba(76, 175, 80, 0.15);
-    color: var(--success-color);
-}
-
-.btn-disabled {
-    background-color: rgba(244, 67, 54, 0.15);
-    color: var(--danger-color);
-}
-
 /* ==========================================================================
-   11. FAMILY GRID - MEMBER BUTTONS
+   10. FAMILY GRID
    ========================================================================== */
 .family-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important; 
+    gap: 10px !important;
+    width: 100%;
 }
 
 .member-btn {
     background-color: var(--theme-color);
     color: var(--text-on-theme);
     border: none;
-    padding: 16px;
+    padding: 12px 8px; 
     border-radius: 8px;
     font-weight: bold;
+    font-size: 0.9rem; 
     cursor: pointer;
     text-align: center;
     transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; 
+}
+
+.member-btn:active {
+    opacity: 0.9;
+    transform: scale(0.98);
 }
 
 /* ==========================================================================
-   12. MODAL
+   11. MODAL
    ========================================================================== */
 .modal {
     display: none;
@@ -318,13 +324,12 @@ body {
 }
 
 /* ==========================================================================
-   13. INFO ROWS & LISTS
+   12. INFO ROWS / TABLES
    ========================================================================== */
 .info-row {
     padding: 12px 8px;
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
-    transition: background 0.2s;
 }
 
 .info-row:hover {
@@ -343,20 +348,43 @@ body {
     color: var(--text-color);
 }
 
-.reminder-item {
-    padding: 12px;
+/* Sửa: Định dạng bảng danh sách lịch sử thu chi theo cấu trúc 3 cột */
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    margin-top: 5px;
+}
+
+.history-table th, .history-table td {
+    padding: 10px 8px;
+    text-align: left;
     border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+}
+
+.history-table th {
+    font-weight: bold;
+    color: var(--stat-label-color);
+    background-color: var(--secondary-bg);
+}
+
+.history-table td.date-col {
+    white-space: nowrap;
+}
+
+.history-table td.amount-col {
+    text-align: right;
+    font-weight: bold;
+    white-space: nowrap;
 }
 
 /* ==========================================================================
-   14. SCROLL TO TOP BUTTON
+   13. SCROLL TO TOP BUTTON
    ========================================================================== */
-.scrollTopBtn {
+.scroll-top {
     position: fixed;
-    bottom: calc(90px + env(safe-area-inset-bottom)); 
+    bottom: calc(100px + env(safe-area-inset-bottom)); 
     right: 20px;
     background-color: var(--scroll-bg);
     color: var(--scroll-text);
@@ -374,8 +402,12 @@ body {
     z-index: 99;
 }
 
+.scroll-top.show {
+    display: flex;
+}
+
 /* ==========================================================================
-   15. CHART & STATISTICS
+   14. CHART & STATISTICS
    ========================================================================== */
 .chart-container {
     position: relative;
@@ -397,8 +429,13 @@ body {
     opacity: 0.7;
 }
 
+.stat-value {
+    font-weight: bold;
+    color: var(--text-color);
+}
+
 /* ==========================================================================
-   16. ALERT BOX
+   15. ALERT BOX
    ========================================================================== */
 .alert-box {
     background-color: rgba(244, 67, 54, 0.08);
@@ -415,7 +452,7 @@ body {
 }
 
 /* ==========================================================================
-   17. GIAO DIỆN SWITCH DARKMODE
+   16. DARK MODE TOGGLE SWITCH
    ========================================================================== */
 .theme-switch-wrapper {
     display: flex;
@@ -431,27 +468,94 @@ body {
     height: 28px;
 }
 
-.theme-switch input { opacity: 0; width: 0; height: 0; }
+.theme-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
 
 .slider {
-    position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-    background-color: #ccc; transition: .4s; border-radius: 34px;
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
 }
 
 .slider:before {
-    position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px;
-    background-color: white; transition: .4s; border-radius: 50%;
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
 }
 
-input:checked + .slider { background-color: var(--theme-color); }
-input:checked + .slider:before { transform: translateX(22px); }
+input:checked + .slider {
+    background-color: var(--theme-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
 
 /* ==========================================================================
-   18. RESPONSIVE MOBILE
+   17. FAMILY MODAL DARK MODE FIX
+   ========================================================================== */
+#familyModal .modal-content {
+    background: var(--modal-content-bg);
+    color: var(--modal-text);
+}
+
+#familyModal .modal-content h3 {
+    color: var(--theme-color);
+}
+
+#familyModal .modal-content .stat-row {
+    color: var(--modal-text);
+}
+
+#familyModal .modal-content .stat-row:hover {
+    background: var(--secondary-bg);
+}
+
+#familyModal .modal-content .btn {
+    background-color: var(--theme-color) !important;
+    color: var(--text-on-theme) !important;
+}
+
+.theme-text { color: var(--theme-color) !important; }
+.theme-bg { background-color: var(--theme-color) !important; color: var(--text-on-theme) !important; }
+
+/* ==========================================================================
+   18. RESPONSIVE
    ========================================================================== */
 @media (max-width: 480px) {
-    .tab-btn { font-size: 0.72rem; padding: 12px 1px; }
-    .header { font-size: 1rem; padding: 12px; }
+    .header {
+        font-size: 1rem;
+        padding: 12px;
+    }
+    
+    .tab-btn {
+        font-size: 0.75rem;
+        padding: 12px 3px;
+    }
+    
+    .modal-content {
+        width: 95%;
+        padding: 15px;
+    }
+    
+    .family-grid {
+        grid-template-columns: repeat(2, 1fr) !important; 
+    }
 }
     </style>
 </head>
@@ -459,6 +563,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 
     <div class="header" id="app-title">💰 TIỀN CỦA TÔI 💰</div>
 
+    <!-- TAB CHI TIÊU -->
     <div id="tab-chi" class="tab-content active">
         <div class="card">
             <h3>Nhập Khoản Chi</h3>
@@ -505,11 +610,14 @@ input:checked + .slider:before { transform: translateX(22px); }
             </div>
             <div id="top-expenses-list"></div>
         </div>
+        
         <div class="card">
             <h3>Lịch sử Chi</h3>
             <div id="expense-history-container">Đang tải lịch sử chi...</div>
         </div>
     </div>
+
+    <!-- TAB THU NHẬP -->
     <div id="tab-thu" class="tab-content">
         <div class="card">
             <h3>Nhập Khoản Thu</h3>
@@ -542,6 +650,8 @@ input:checked + .slider:before { transform: translateX(22px); }
             <div id="income-history-container">Đang tải lịch sử thu...</div>
         </div>
     </div>
+
+    <!-- TAB THỐNG KÊ -->
     <div id="tab-thongke" class="tab-content">
         <div class="card">
             <h3>Section 1: Cảnh Báo Vượt Hạn Mức (So với tháng trước)</h3>
@@ -560,8 +670,8 @@ input:checked + .slider:before { transform: translateX(22px); }
 
         <div class="card">
             <h3>Section 3: Tỷ Lệ Nguồn Thu</h3>
-            <div class="stat-row"><span>A (MÌNH):</span><strong id="sec3-Mine">0</strong></div>
-            <div class="stat-row"><span>B (CON CỢP):</span><strong id="sec3-Tiger">0</strong></div>
+            <div class="stat-row"><span style="color: #8BC34A; font-weight: bold;">MÌNH</span><strong id="sec3-Mine" style="color: #8BC34A; font-weight: bold;">0</strong></div>
+            <div class="stat-row"><span style="color: #E91E63; font-weight: bold;">CON CỢP</span><strong id="sec3-Tiger" style="color: #E91E63; font-weight: bold;">0</strong></div>
             <div class="chart-container">
                 <canvas id="chart-sec3-pie"></canvas>
             </div>
@@ -576,57 +686,16 @@ input:checked + .slider:before { transform: translateX(22px); }
                 </select>
             </div>
             <div class="stat-row"><span>Số Dư Hiện Tại:</span><strong id="sec4-balance">0</strong></div>
-            <div class="stat-row"><span>Tổng Thu:</span><strong id="sec4-thu">0</strong></div>
-            <div class="stat-row"><span>Tổng Chi Thực Tế:</span><strong id="sec4-net-chi">0</strong></div>
-            <div class="stat-row"><span>Tổng Số Tiền Tiết Kiệm:</span><strong id="sec4-savings" style="color:var(--theme-color);">0</strong></div>
+            <div class="stat-row"><span>Tổng Thu:</span><strong id="sec4-thu" style="color:#4CAF50;">0</strong></div>
+            <div class="stat-row"><span>Tổng Chi Thực Tế:</span><strong id="sec4-net-chi" style="color:#F44336;">0</strong></div>
+            <div class="stat-row"><span>Tổng Số Tiền Tiết Kiệm:</span><strong id="sec4-savings" style="color:#FFEB3B;">0</strong></div>
             <div class="chart-container">
                 <canvas id="chart-sec4-pie"></canvas>
             </div>
         </div>
     </div>
-    <div id="tab-reminders" class="tab-content">
-        <div class="card">
-            <h3>Tạo Nhắc Hẹn Mới</h3>
-            <form id="form-reminder" onsubmit="saveReminder(event)">
-                <div class="form-group">
-                    <label>Nội dung nhắc</label>
-                    <input type="text" id="rem-content" class="form-control" placeholder="Ví dụ: Đóng tiền nước, Khám định kỳ..." required>
-                </div>
-                <div class="form-group">
-                    <label>Tần suất nhắc</label>
-                    <select id="rem-frequency" class="form-control" onchange="toggleCustomFrequencyFields()">
-                        <option value="DAILY">Hàng ngày (DAILY)</option>
-                        <option value="WEEKLY">Hàng tuần (WEEKLY)</option>
-                        <option value="MONTHLY">Hàng tháng (MONTHLY)</option>
-                        <option value="CUSTOM">Tùy chỉnh (CUSTOM)</option>
-                    </select>
-                </div>
-                <div id="custom-frequency-fields" style="display: none; background: rgba(0,0,0,0.03); padding: 12px; border-radius: 6px; margin-bottom: 15px;">
-                    <div class="form-group" style="margin-bottom: 8px;">
-                        <label>Lặp lại mỗi (Số lượng)</label>
-                        <input type="number" id="rem-every-val" class="form-control" placeholder="Ví dụ: 2, 3..." min="1" value="1">
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>Đơn vị thời gian</label>
-                        <select id="rem-every-unit" class="form-control">
-                            <option value="DAYS">Ngày (DAYS)</option>
-                            <option value="WEEKS">Tuần (WEEKS)</option>
-                            <option value="MONTHS">Tháng (MONTHS)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Ngày bắt đầu lịch nhắc</label>
-                    <input type="date" id="rem-start-date" class="form-control" required>
-                </div>
-                <button type="submit" class="btn">Ghi Lịch Nhắc Hẹn</button>
-            </form>
-        </div>
-        <div class="card">
-            <h3>Danh Sách Lịch Nhắc Hẹn</h3>
-            <div id="reminders-list-container">Đang tải lịch nhắc...</div>
-        </div>
-    </div>
+
+    <!-- TAB LÝ LỊCH GIA ĐÌNH -->
     <div id="tab-family" class="tab-content">
         <div id="family-auth-view" class="card" style="text-align: center; padding: 40px 20px;">
             <div style="font-size: 48px; margin-bottom: 15px;">🔒</div>
@@ -641,11 +710,12 @@ input:checked + .slider:before { transform: translateX(22px); }
         <div id="family-main-view" style="display: none;">
             <div class="card">
                 <h3>Thành viên gia đình</h3>
-                <div id="family-buttons-container"></div>
+                <div id="family-buttons-container" class="family-grid"></div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL HIỂN THỊ CHI TIẾT THÀNH VIÊN -->
     <div id="familyModal" class="modal">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -654,6 +724,8 @@ input:checked + .slider:before { transform: translateX(22px); }
             <button id="btn-copy-all" class="btn">📋 Sao chép toàn bộ thông tin</button>
         </div>
     </div>
+
+    <!-- TAB CÀI ĐẶT -->
     <div id="tab-settings" class="tab-content">
         <div class="card">
             <h3>Thay Đổi Giao Diện</h3>
@@ -681,31 +753,29 @@ input:checked + .slider:before { transform: translateX(22px); }
 
         <div class="card">
             <h3>Dữ liệu & Đồng bộ</h3>
-            <p style="font-size: 12px; color: #aaa; margin-bottom: 12px;">Cập nhật thông tin thành viên gia đình và nhắc hẹn mới nhất.</p>
+            <p style="font-size: 12px; color: #aaa; margin-bottom: 12px;">Cập nhật thông tin thành viên gia đình mới nhất.</p>
             <button class="btn" id="btn-sync-data" onclick="syncAllDataFromSheet()">🔄 Đồng bộ dữ liệu</button>
             <div id="sync-status" style="font-size: 12px; color: #aaa; margin-top: 8px; text-align: center;"></div>
             
             <button class="btn" onclick="resetAppCompletely()" style="background-color: #F44336 !important; color: #fff !important; width: 100%; margin-top: 15px;">🗑️ Xóa sạch dữ liệu & Đặt lại App</button>
         </div>
     </div>
+
+    <!-- FOOTER FLOATING NAV-TABS CHỐNG TRÀN VIỀN -->
     <div class="nav-tabs">
         <button class="tab-btn active" onclick="switchTab('chi')">Chi</button>
         <button class="tab-btn" onclick="switchTab('thu')">Thu</button>
         <button class="tab-btn" onclick="switchTab('thongke')">Thống Kê</button>
-        <button class="tab-btn" onclick="switchTab('reminders')">Nhắc Hẹn</button>
         <button class="tab-btn" onclick="switchTab('family')">Family</button>
         <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
     </div>
 
-    <button class="scrollTopBtn" id="scrollTopBtn" onclick="scrollToTop()">↑</button>
+    <button class="scroll-top" id="scrollTopBtn" onclick="scrollToTop()">↑</button>
 
     <script>
-        // ==========================================================================
-        // TÁC VỤ 1: KHAI BÁO CẤU HÌNH HỆ THỐNG
-        // ==========================================================================
         const CONFIG = {
-            googleSheetId: '1t7aAWY-bUNdVxphqGPvKeM6UyXrW4BiMuF5NHR4A7NU', 
-            apiEndpoint: 'https://script.google.com/macros/s/AKfycbzsrG_EpTW2FgX9FQ0opVVQKBKImKbHXwXg1-eeLxD8Up35AYWIWWRu2V2tNLVTWNSw/exec' 
+            googleSheetId: '19Tsmkh53nPAqhTYy2DU5dSfYXJRAwyc9VI0VaeM3LMw', 
+            apiEndpoint: 'https://script.google.com/macros/s/AKfycbxC72RzXFo9yG8iP9FRgyjY7sYhH_ffHxR1qkK0u5GbwFnmODsZ0E2_M_Hl38328S3T/exec' 
         };
 
         const CATEGORIES = {
@@ -721,7 +791,7 @@ input:checked + .slider:before { transform: translateX(22px); }
             chi: {
                 "Chi khác": ["Từ thiện", "Biếu tặng", "Dịch vụ công"],
                 "Chi tiêu thiết yếu": ["Đi chợ, siêu thị", "Điện", "Nước", "Internet", "Xăng", "Tiền tiêu vặt", "Điện thoại", "Transportation"],
-                "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT"],
+                "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
                 "Giải trí": ["Cafe", "Coi phim", "Du lịch", "Nhà hàng"],
                 "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
                 "Mua sắm": ["Đồ ăn, thức uống", "Đồ chơi", "Đồ gia dụng", "Mĩ phẩm", "Phụ kiện", "Quần áo", "Sách, Văn phòng phẩm", "Thực phẩm chức năng"],
@@ -732,82 +802,28 @@ input:checked + .slider:before { transform: translateX(22px); }
         let db;
         let charts = {};
         let localFamilyData = []; 
-        let isSyncing = false; 
-        // end KHAI BÁO CẤU HÌNH HỆ THỐNG
 
-
-        // ==========================================================================
-        // TÁC VỤ 2: QUẢN LÝ CƠ SỞ DỮ LIỆU CỤC BỘ (INDEXEDDB)
-        // ==========================================================================
         function initDB() {
-            const request = indexedDB.open("FamilyFinancePWA", 3); // Nâng phiên bản lên 3 hỗ trợ store nhắc hẹn
+            const request = indexedDB.open("FamilyFinancePWA", 2);
             request.onupgradeneeded = function(e) {
                 db = e.target.result;
                 if (!db.objectStoreNames.contains("transactions")) db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
                 if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "key" });
-                if (!db.objectStoreNames.contains("reminders")) db.createObjectStore("reminders", { keyPath: "id", autoIncrement: true });
             };
             request.onsuccess = function(e) {
                 db = e.target.result;
                 loadInitialSettings();
             };
-        } // end function initDB
-        // end QUẢN LÝ CƠ SỞ DỮ LIỆU CỤC BỘ (INDEXEDDB)
+        }
 
-
-        // ==========================================================================
-        // TÁC VỤ 3: TIỆN ÍCH ĐỊNH DẠNG & ĐIỀU KHIỂN UI PHỤ
-        // ==========================================================================
         function formatCurrency(input) {
             let value = input.value.replace(/[^0-9.]/g, "");
             let parts = value.split(".");
             parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
             input.value = parts.join(".");
-        } // end function formatCurrency
-
-        function parseCurrency(str) { 
-            return str ? parseFloat(str.replace(/,/g, "")) : 0; 
-        } // end function parseCurrency
-        
-        function formatVND(num) { 
-            return num.toLocaleString('en-US') + " đ"; 
-        } // end function formatVND
-
-        function toggleCustomFrequencyFields() {
-            const freq = document.getElementById("rem-frequency").value;
-            const customFields = document.getElementById("custom-frequency-fields");
-            if (customFields) {
-                customFields.style.display = (freq === "CUSTOM") ? "block" : "none";
-            }
-        } // end function toggleCustomFrequencyFields
-        // end TIỀN ÍCH ĐỊNH DẠNG & ĐIỀU KHIỂN UI PHỤ
-
-
-        // ==========================================================================
-        // TÁC VỤ 4: ĐIỀU PHỐI TAB & KHỞI TẠO FORM OPTIONS
-        // ==========================================================================
-        function switchTab(tabName) {
-            document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
-            document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
-            
-            const targetTab = document.getElementById(`tab-${tabName}`);
-            if(targetTab) targetTab.classList.add("active");
-            
-            const btns = document.querySelectorAll(".tab-btn");
-            btns.forEach(btn => {
-                if((tabName === 'chi' && btn.textContent === 'Chi') ||
-                   (tabName === 'thu' && btn.textContent === 'Thu') ||
-                   (tabName === 'thongke' && btn.textContent === 'Thống Kê') ||
-                   (tabName === 'reminders' && btn.textContent === 'Nhắc Hẹn') ||
-                   (tabName === 'family' && btn.textContent === 'Family') ||
-                   (tabName === 'settings' && btn.textContent === 'Settings')) {
-                    btn.classList.add("active");
-                }
-            });
-            if (tabName === 'chi' || tabName === 'thongke') renderChartsAndStats();
-            if (tabName === 'reminders') renderRemindersList();
-            if (tabName === 'family') checkFamilyTabAccess();
-        } // end function switchTab
+        }
+        function parseCurrency(str) { return str ? parseFloat(str.replace(/,/g, "")) : 0; }
+        function formatVND(num) { return num.toLocaleString('en-US') + " đ"; }
 
         function updateSubtypes(mode) {
             const typeSelect = document.getElementById(`${mode}-type`);
@@ -823,7 +839,7 @@ input:checked + .slider:before { transform: translateX(22px); }
                     subtypeSelect.appendChild(opt);
                 });
             }
-        } // end function updateSubtypes
+        }
 
         function initFormOptions() {
             ['chi', 'thu'].forEach(mode => {
@@ -842,16 +858,28 @@ input:checked + .slider:before { transform: translateX(22px); }
                 const dateInput = document.getElementById(`${mode}-date`);
                 if(dateInput) dateInput.value = now.toISOString().slice(0,16);
             });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
+            document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove("active"));
             
-            const remDateInput = document.getElementById("rem-start-date");
-            if (remDateInput) remDateInput.value = new Date().toISOString().slice(0, 10);
-        } // end function initFormOptions
-        // end ĐIỀU PHỐI TAB & KHỞI TẠO FORM OPTIONS
+            const targetTab = document.getElementById(`tab-${tabName}`);
+            if(targetTab) targetTab.classList.add("active");
+            
+            const btns = document.querySelectorAll(".tab-btn");
+            btns.forEach(btn => {
+                if(btn.textContent.toLowerCase().includes(tabName.toLowerCase()) || 
+                   (tabName === 'thongke' && btn.textContent === 'Thống Kê') ||
+                   (tabName === 'family' && btn.textContent === 'Family') ||
+                   (tabName === 'settings' && btn.textContent === 'Settings')) {
+                    btn.classList.add("active");
+                }
+            });
+            if (tabName === 'chi' || tabName === 'thongke') renderChartsAndStats();
+            if (tabName === 'family') checkFamilyTabAccess();
+        }
 
-
-        // ==========================================================================
-        // TÁC VỤ 5: QUẢN LÝ GIAO DỊCH THU / CHI & VẼ BIỂU ĐỒ THỐNG KÊ
-        // ==========================================================================
         function saveTransaction(event, mode) {
             event.preventDefault();
             const type = document.getElementById(`${mode}-type`).value;
@@ -876,15 +904,16 @@ input:checked + .slider:before { transform: translateX(22px); }
                 renderChartsAndStats();
                 syncToGoogleSheets();
             };
-        } // end function saveTransaction
+        }
 
         function getAllTransactions(callback) {
             if (!db) return;
             db.transaction("transactions", "readonly").objectStore("transactions").getAll().onsuccess = function(e) {
                 callback(e.target.result);
             };
-        } // end function getAllTransactions
+        }
 
+        let isSyncing = false; 
         function syncToGoogleSheets() {
             if (!navigator.onLine || isSyncing || !CONFIG.apiEndpoint) return;
             getAllTransactions(transactions => {
@@ -907,7 +936,9 @@ input:checked + .slider:before { transform: translateX(22px); }
                     isSyncing = false; 
                 }).catch(() => { isSyncing = false; });
             });
-        } // end function syncToGoogleSheets
+        } // end function syncToGoogleSheets()
+        
+        window.addEventListener('online', syncToGoogleSheets);
 
         function renderPieChart(canvasId, labels, dataset, customColors = null) {
             if (charts[canvasId]) charts[canvasId].destroy();
@@ -916,7 +947,7 @@ input:checked + .slider:before { transform: translateX(22px); }
             const ctx = canvasEl.getContext('2d');
             let total = dataset.reduce((a, b) => a + Math.abs(b), 0);
             let defaultColors = ['#4CAF50', '#F44336', '#FF9800', '#2196F3', '#9C27B0', '#E91E63'];
-            
+        
             charts[canvasId] = new Chart(ctx, {
                 type: 'pie',
                 data: { labels: labels, datasets: [{ data: dataset, backgroundColor: customColors || defaultColors }] },
@@ -924,6 +955,29 @@ input:checked + .slider:before { transform: translateX(22px); }
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                // ==========================================================
+                                // ĐOẠN SỬA LỖI: TỰ ĐỘNG ĐỔI MÀU CHỮ TRÙNG MÀU BIỂU ĐỒ
+                                // ==========================================================
+                                color: function(context) {
+                                    // Lấy danh sách màu nền đang sử dụng cho biểu đồ này
+                                    const bgColors = context.chart.data.datasets[0].backgroundColor;
+                                    // Lấy vị trí (index) của nhãn đang vẽ và trả về màu tương ứng
+                                    const index = context.index;
+                                    return bgColors[index] || '#ffffff';
+                                },
+                                // ==========================================================
+                                font: {
+                                    size: 13,
+                                    weight: 'bold',
+                                    family: 'inherit'
+                                },
+                                padding: 12
+                            }
+                        },
                         datalabels: {
                             color: ctx => { let c = ctx.dataset.backgroundColor[ctx.dataIndex]; return (c === '#FFEB3B' || c === '#8BC34A') ? '#111111' : '#ffffff'; },
                             font: { weight: 'bold', size: 12 }, anchor: 'center', align: 'center',
@@ -949,8 +1003,51 @@ input:checked + .slider:before { transform: translateX(22px); }
                 let expList = sortedData.filter(t => t.amount < 0).slice(0, 20);
                 let incList = sortedData.filter(t => t.amount > 0).slice(0, 20);
 
-                document.getElementById("expense-history-container").innerHTML = expList.length ? expList.map(t => `<div class="stat-row"><span>${new Date(t.timestamp).toLocaleDateString('vi-VN')} - ${t.type} (${t.subtype}) ${t.note ? '<i> - '+t.note+'</i>':''}</span><strong style="color:var(--danger-color);">${formatVND(Math.abs(t.amount))}</strong></div>`).join('') : "Chưa có khoản chi nào.";
-                document.getElementById("income-history-container").innerHTML = incList.length ? incList.map(t => `<div class="stat-row"><span>${new Date(t.timestamp).toLocaleDateString('vi-VN')} - ${t.type} (${t.subtype}) ${t.note ? '<i> - '+t.note+'</i>':''}</span><strong style="color:var(--success-color);">${formatVND(t.amount)}</strong></div>`).join('') : "Chưa có khoản thu nào.";
+                // --- ĐOẠN SỬA LỊCH SỬ CHI ---
+                if (expList.length) {
+                    let htmlChi = `<table class="history-table">
+                        <tbody>`;
+                    expList.forEach(t => {
+                        let dStr = new Date(t.timestamp).toLocaleDateString('vi-VN');
+                        
+                        let contentStr = `${t.subtype} ${t.note ? `<br><small style="opacity:0.7;"><i>📝 ${t.note}</i></small>` : ''}`;
+                        let amtStr = formatVND(Math.abs(t.amount));
+                        htmlChi += `<tr>
+                            <td class="date-col">${dStr}</td>
+                            <td>${t.type}</td>
+                            <td>${contentStr}</td>
+                            <td class="amount-col" style="color:var(--success-color);">${amtStr}</td>
+                        </tr>`;
+                    });
+                    htmlChi += `</tbody></table>`;
+                    document.getElementById("expense-history-container").innerHTML = htmlChi;
+                } else {
+                    document.getElementById("expense-history-container").innerHTML = "Chưa có khoản chi nào.";
+                }
+                
+                // --- ĐOẠN SỬA LỊCH SỬ THU ---
+                if (incList.length) {
+                    let htmlThu = `<table class="history-table">
+        
+                        <tbody>`;
+                    incList.forEach(t => {
+                        let dStr = new Date(t.timestamp).toLocaleDateString('vi-VN');
+                        
+                        let contentStr = `${t.subtype} ${t.note ? `<br><small style="opacity:0.7;"><i>📝 ${t.note}</i></small>` : ''}`;
+                        let amtStr = formatVND(t.amount);
+                        
+                        htmlThu += `<tr>
+                            <td class="date-col">${dStr}</td>
+                            <td>${t.type}</td>
+                            <td>${contentStr}</td>
+                            <td class="amount-col" style="color:var(--success-color);">${amtStr}</td>
+                        </tr>`;
+                    });
+                    htmlThu += `</tbody></table>`;
+                    document.getElementById("income-history-container").innerHTML = htmlThu;
+                } else {
+                    document.getElementById("income-history-container").innerHTML = "Chưa có khoản thu nào.";
+                }
 
                 data.forEach(t => {
                     const tDate = new Date(t.timestamp), amt = t.amount;
@@ -997,12 +1094,13 @@ input:checked + .slider:before { transform: translateX(22px); }
 
                 if(document.getElementById("sec3-Mine")) document.getElementById("sec3-Mine").textContent = formatVND(sum_Mine);
                 if(document.getElementById("sec3-Tiger")) document.getElementById("sec3-Tiger").textContent = formatVND(sum_Tiger);
-                renderPieChart('chart-sec3-pie', ['A (MÌNH)', 'B (CON CỢP)'], [sum_Mine, sum_Tiger], ['#8BC34A', '#E91E63']);
+                renderPieChart('chart-sec3-pie', ['MÌNH', 'CON CỢP'], [sum_Mine, sum_Tiger], ['#8BC34A', '#E91E63']);
 
                 renderSection4(data);
             });
-        } // end function renderChartsAndStats
+        }
 
+        // Sửa: Cộng nhóm các khoản chi trùng Type + Subtype trước rồi mới lấy Top 5
         function renderTopExpenses() {
             const periodSelect = document.getElementById("chi-top-period");
             if(!periodSelect) return;
@@ -1015,13 +1113,48 @@ input:checked + .slider:before { transform: translateX(22px); }
                     if (period === 'month') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                     if (period === 'year') return d.getFullYear() === now.getFullYear();
                     return true;
-                }).sort((a, b) => a.amount - b.amount);
-
+                });
+        
+                // Gom nhóm cộng dồn theo cặp Type (Subtype)
+                let groupedData = {};
+                filtered.forEach(t => {
+                    let groupKey = `${t.type} (${t.subtype})`;
+                    if (!groupedData[groupKey]) {
+                        groupedData[groupKey] = 0;
+                    }
+                    groupedData[groupKey] += Math.abs(t.amount);
+                });
+        
+                // Chuyển đối thành mảng để sắp xếp giảm dần theo số tiền gom tổng
+                let sortedGroups = Object.keys(groupedData).map(key => {
+                    return { category: key, totalAmount: groupedData[key] };
+                }).sort((a, b) => b.totalAmount - a.totalAmount);
+        
                 const container = document.getElementById("top-expenses-list");
                 if(!container) return;
-                container.innerHTML = filtered.length ? filtered.slice(0, 5).map((t, i) => `<div class="stat-row"><span>${i+1}. ${t.type} (${t.subtype}) ${t.note ? '- '+t.note : ''}</span><strong style="color:var(--danger-color);">${formatVND(Math.abs(t.amount))}</strong></div>`).join('') : "<p>Không có dữ liệu chi tiêu.</p>";
+                
+                if (sortedGroups.length === 0) {
+                    container.innerHTML = "<p>Không có dữ liệu chi tiêu.</p>";
+                    return;
+                }
+                
+                // Dùng stat-row với grid 4 cột
+                let html = '';
+                sortedGroups.slice(0, 5).forEach((g, i) => {
+                    let parts = g.category.match(/^(.*?)\s*\((.*?)\)$/);
+                    let type = parts ? parts[1] : g.category;
+                    let subtype = parts ? parts[2] : '--';
+                    
+                    html += `<div class="stat-row" style="display: grid; grid-template-columns: 30px 1fr 1fr 100px; gap: 8px; padding: 10px 4px; align-items: center;">
+                        <span style="font-weight: bold; color: var(--text-color); opacity: 0.5;">${i+1}</span>
+                        <span style="font-weight: 600; color: var(--theme-color);">${type}</span>
+                        <span style="color: var(--text-color); opacity: 0.7; font-size: 0.9rem;">${subtype}</span>
+                        <span style="font-weight: bold; color: var(--danger-color); text-align: right;">${formatVND(g.totalAmount)}</span>
+                    </div>`;
+                });
+                container.innerHTML = html;
             });
-        } // end function renderTopExpenses
+        }
 
         function renderSection4(allData) {
             const periodSelect = document.getElementById("sec4-period");
@@ -1049,134 +1182,8 @@ input:checked + .slider:before { transform: translateX(22px); }
                 renderPieChart('chart-sec4-pie', ['Tổng Thu', 'Tổng Chi Thực Tế', 'Tiết Kiệm'], [totalThu, fullChi, investmentSavings], ['#4CAF50', '#F44336', '#FFEB3B']);
             };
             if (allData) run(allData); else getAllTransactions(run);
-        } // end function renderSection4
-        window.addEventListener('online', syncToGoogleSheets);
-        // end QUẢN LÝ GIAO DỊCH THU / CHI & VẼ BIỂU ĐỒ THỐNG KÊ
+        }
 
-
-        // ==========================================================================
-        // TÁC VỤ 6: QUẢN LÝ NHẮC HẸN ĐỊNH KỲ (REMINDERS - ENABLED/DISABLED)
-        // ==========================================================================
-        function saveReminder(event) {
-            event.preventDefault();
-            const content = document.getElementById("rem-content").value.trim();
-            const frequency = document.getElementById("rem-frequency").value;
-            const startDate = document.getElementById("rem-start-date").value;
-            const everyVal = document.getElementById("rem-every-val").value;
-            const everyUnit = document.getElementById("rem-every-unit").value;
-
-            const reminderItem = {
-                content: content,
-                frequency: frequency,
-                startDate: startDate,
-                everyVal: frequency === "CUSTOM" ? everyVal : "",
-                everyUnit: frequency === "CUSTOM" ? everyUnit : "",
-                status: "ENABLED", // Khởi tạo mặc định theo quy chuẩn trạng thái mới
-                synced: 0
-            };
-
-            const tx = db.transaction("reminders", "readwrite");
-            tx.objectStore("reminders").add(reminderItem);
-            tx.oncomplete = function() {
-                alert("Đã thêm lịch nhắc hẹn!");
-                document.getElementById("form-reminder").reset();
-                initFormOptions();
-                toggleCustomFrequencyFields();
-                renderRemindersList();
-                syncRemindersToGoogleSheets();
-            };
-        } // end function saveReminder
-
-        function getAllReminders(callback) {
-            if (!db) return;
-            db.transaction("reminders", "readonly").objectStore("reminders").getAll().onsuccess = function(e) {
-                callback(e.target.result);
-            };
-        } // end function getAllReminders
-
-        function renderRemindersList() {
-            getAllReminders(reminders => {
-                const container = document.getElementById("reminders-list-container");
-                if (!container) return;
-                
-                if (reminders.length === 0) {
-                    container.innerHTML = "<p style='color: #aaa; text-align: center;'>Chưa có lịch nhắc hẹn nào.</p>";
-                    return;
-                }
-
-                container.innerHTML = reminders.map(rem => {
-                    let freqDisplay = rem.frequency;
-                    if (rem.frequency === "CUSTOM") {
-                        freqDisplay = `EVERY ${rem.everyVal} ${rem.everyUnit}`;
-                    }
-                    const isEnabled = rem.status === "ENABLED";
-                    const btnClass = isEnabled ? "btn-enabled" : "btn-disabled";
-                    const btnText = isEnabled ? "ENABLED" : "DISABLED";
-
-                    return `
-                        <div class="reminder-item">
-                            <div>
-                                <strong style="font-size: 1.05rem;">${rem.content}</strong>
-                                <div style="font-size: 0.8rem; color: #888; margin-top: 4px;">
-                                    <span>🔁 ${freqDisplay}</span> | 📅 Bắt đầu: ${rem.startDate}
-                                </div>
-                            </div>
-                            <button class="btn-status ${btnClass}" onclick="toggleReminderStatus(${rem.id}, '${rem.status}')">
-                                ${btnText}
-                            </button>
-                        </div>
-                    `;
-                }).join('');
-            });
-        } // end function renderRemindersList
-
-        function toggleReminderStatus(id, currentStatus) {
-            const nextStatus = (currentStatus === "ENABLED") ? "DISABLED" : "ENABLED";
-            const tx = db.transaction("reminders", "readwrite");
-            const store = tx.objectStore("reminders");
-            
-            store.get(id).onsuccess = function(e) {
-                const data = e.target.result;
-                if (data) {
-                    data.status = nextStatus;
-                    data.synced = 0; // Đánh dấu chưa đồng bộ để update lên sheet sau
-                    store.put(data);
-                }
-            };
-            
-            tx.oncomplete = function() {
-                renderRemindersList();
-                syncRemindersToGoogleSheets();
-            };
-        } // end function toggleReminderStatus
-
-        function syncRemindersToGoogleSheets() {
-            if (!navigator.onLine || !CONFIG.apiEndpoint) return;
-            getAllReminders(reminders => {
-                const unsynced = reminders.filter(r => r.synced === 0);
-                if (unsynced.length === 0) return;
-                
-                fetch(CONFIG.apiEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'syncReminders', data: unsynced })
-                })
-                .then(res => res.json())
-                .then(resData => {
-                    if (resData.status === "success") {
-                        const tx = db.transaction("reminders", "readwrite");
-                        const store = tx.objectStore("reminders");
-                        unsynced.forEach(r => { r.synced = 1; store.put(r); });
-                    }
-                }).catch(() => {});
-            });
-        } // end function syncRemindersToGoogleSheets
-        // end QUẢN LÝ NHẮC HẸN ĐỊNH KỲ (REMINDERS - ENABLED/DISABLED)
-
-
-        // ==========================================================================
-        // TÁC VỤ 7: XÁC THỰC BẢO MẬT & HIỂN THỊ LÝ LỊCH GIA ĐÌNH (FAMILY)
-        // ==========================================================================
         function checkFamilyTabAccess() {
             const isUnlocked = localStorage.getItem("family_unlocked") === "true";
             const authView = document.getElementById("family-auth-view");
@@ -1191,7 +1198,7 @@ input:checked + .slider:before { transform: translateX(22px); }
                 authView.style.setProperty("display", "block", "important");
                 mainView.style.setProperty("display", "none", "important");
             }
-        } // end function checkFamilyTabAccess
+        }
 
         function verifyFamilyAuth() {
             const inputPass = document.getElementById("family-password").value;
@@ -1204,7 +1211,7 @@ input:checked + .slider:before { transform: translateX(22px); }
                         checkFamilyTabAccess();
                     } else alert("Mật khẩu không khớp!");
                 }).catch(() => { alert("Không thể kết nối xác thực!"); });
-        } // end function verifyFamilyAuth
+        }
         
         function generateFamilyInterface() {
             const container = document.getElementById("family-buttons-container");
@@ -1221,7 +1228,7 @@ input:checked + .slider:before { transform: translateX(22px); }
                         renderFamilyGrid(res.data);
                     } else container.innerHTML = "<p style='color: #aaa; text-align: center;'>📭 Chưa có dữ liệu.</p>";
                 }).catch(() => { container.innerHTML = "<p style='color: #f44336; text-align: center;'>❌ Lỗi kết nối!</p>"; });
-        } // end function generateFamilyInterface
+        }
         
         function renderFamilyGrid(members) {
             const container = document.getElementById("family-buttons-container");
@@ -1237,8 +1244,9 @@ input:checked + .slider:before { transform: translateX(22px); }
                 btn.onclick = () => showFamilyModal(m);
                 container.appendChild(btn);
             });
-        } // end function renderFamilyGrid
+        }
         
+        // Sửa: Phân cấp dạng cây, ẩn chữ tiền tố, đổi màu sắc Theme và tăng cỡ chữ cho CCCD, Hộ chiếu, Lí lịch tư pháp
         function showFamilyModal(m) {
             const fields = [
                 { l: "Biệt danh", v: m.nickname || "-" }, { l: "Họ tên", v: m.fullname || "-" }, { l: "Ngày sinh", v: m.dob || "-" }, { l: "Nơi sinh", v: m.noisinh || "-" }, { l: "Địa chỉ", v: m.diachi || "-" },
@@ -1249,26 +1257,71 @@ input:checked + .slider:before { transform: translateX(22px); }
             ];
             const detailsDiv = document.getElementById("modal-member-details");
             if (!detailsDiv) return; detailsDiv.innerHTML = ""; let fullBlockText = "";
+            
+            let lastGroup = ""; 
+
             fields.forEach(f => {
                 fullBlockText += `${f.l}: ${f.v}\n`;
-                let row = document.createElement("div"); row.className = "info-row";
-                row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}</div>`;
+                
+                let currentGroup = "";
+                let cleanLabel = f.l;
+                
+                if (f.l.startsWith("CCCD:")) {
+                    currentGroup = "CCCD";
+                    cleanLabel = f.l.replace("CCCD:", "").trim(); 
+                } else if (f.l.startsWith("Hộ chiếu:")) {
+                    currentGroup = "Hộ chiếu";
+                    cleanLabel = f.l.replace("Hộ chiếu:", "").trim();
+                } else if (f.l.startsWith("LLTP:")) {
+                    currentGroup = "Lí lịch tư pháp";
+                    cleanLabel = f.l.replace("LLTP:", "").trim();
+                }
+
+                // Nếu bước sang khối tiêu đề cha lớn mới
+                if (currentGroup && currentGroup !== lastGroup) {
+                    let groupHeader = document.createElement("div");
+                    groupHeader.style.marginTop = "18px";
+                    groupHeader.style.marginBottom = "4px";
+                    groupHeader.style.padding = "6px 8px";
+                    groupHeader.style.fontSize = "1.1rem"; // Tăng cỡ chữ to hơn dễ nhìn
+                    groupHeader.style.fontWeight = "bold";
+                    groupHeader.style.color = "var(--theme-color)"; // Đồng bộ màu sắc chữ theo Theme chủ đạo hiện tại
+                    groupHeader.style.borderBottom = "1px dashed var(--border-color)";
+                    groupHeader.textContent = currentGroup;
+                    detailsDiv.appendChild(groupHeader);
+                    
+                    lastGroup = currentGroup;
+                }
+
+                let row = document.createElement("div"); 
+                row.className = "info-row";
+                
+                if (currentGroup) {
+                    // Dạng cây thụt dòng và thêm dấu gạch ngang đầu dòng (-) cho các mục con độc lập
+                    row.innerHTML = `
+                        <div class="info-label" style="padding-left: 15px; font-size: 0.9rem;">- ${cleanLabel}</div>
+                        <div class="info-value" style="padding-left: 25px; font-weight: 500;">${f.v}</div>
+                    `;
+                    row.style.paddingTop = "6px";
+                    row.style.paddingBottom = "6px";
+                } else {
+                    if (!currentGroup) lastGroup = ""; 
+                    row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}</div>`;
+                }
+                
                 row.onclick = () => { if(f.v !== "-") { navigator.clipboard.writeText(f.v); alert(`Đã copy: ${f.v}`); } };
                 detailsDiv.appendChild(row);
             });
+            
             document.getElementById("btn-copy-all").onclick = () => { navigator.clipboard.writeText(fullBlockText); alert("Đã copy toàn bộ thông tin lí lịch!"); };
             document.getElementById("familyModal").style.display = "flex";
-        } // end function showFamilyModal
-
-        function closeModal() { 
-            document.getElementById("familyModal").style.display = "none"; 
-        } // end function closeModal
-        // end XÁC THỰC BẢO MẬT & HIỂN THỊ LÝ LỊCH GIA ĐÌNH (FAMILY)
-
+        }
+        function closeModal() { document.getElementById("familyModal").style.display = "none"; }
 
         // ==========================================================================
-        // TÁC VỤ 8: QUẢN LÝ GIAO DIỆN CHỦ ĐỀ & DARK MODE
+        // CẬP NHẬT CẤU HÌNH GIAO DIỆN MẶC ĐỊNH (XANH BƠ + DARK MODE)
         // ==========================================================================
+        
         function toggleDarkMode(enable) {
             document.documentElement.setAttribute('data-theme', enable ? 'dark' : 'light');
             localStorage.setItem('darkMode', enable ? 'true' : 'false');
@@ -1278,8 +1331,9 @@ input:checked + .slider:before { transform: translateX(22px); }
                 if (slider) slider.style.backgroundColor = enable ? colorInput.value : '#ccc'; 
             }
         } // end function toggleDarkMode
-
+        
         function applyTheme() {
+            // Mặc định chọn màu Xanh Bơ (#8BC34A) nếu chưa có màu nào được chọn hoặc lưu trữ
             const themeColor = document.getElementById("setting-color")?.value || "#8BC34A";
             const root = document.documentElement;
             root.style.setProperty('--theme-color', themeColor.toLowerCase());
@@ -1288,31 +1342,24 @@ input:checked + .slider:before { transform: translateX(22px); }
             let r = parseInt(themeColor.slice(1,3),16), g = parseInt(themeColor.slice(3,5),16), b = parseInt(themeColor.slice(5,7),16);
             root.style.setProperty('--text-on-theme', ((r*299 + g*587 + b*114)/1000) > 150 ? '#111111' : '#ffffff');
             localStorage.setItem('themeColor', themeColor);
-            
-            const isDark = localStorage.getItem('darkMode') === 'true';
-            const slider = document.querySelector('.slider');
-            if(slider) slider.style.backgroundColor = isDark ? themeColor : '#ccc';
         } // end function applyTheme
-
+        
         function loadTheme() {
+            // Nếu chưa từng thiết lập (null), mặc định ép buộc kích hoạt Dark Mode ('true')
             const savedDark = localStorage.getItem('darkMode');
             const isDark = savedDark !== null ? savedDark === 'true' : true; 
             
             document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
             if (document.getElementById('darkModeToggle')) document.getElementById('darkModeToggle').checked = isDark;
             
+            // Nếu chưa từng chọn màu, mặc định hiển thị Xanh Bơ (#8BC34A) trên thẻ select và cấu hình hệ thống
             let savedColor = localStorage.getItem('themeColor') || "#8BC34A";
             if(document.getElementById("setting-color")) {
                 document.getElementById("setting-color").value = savedColor;
             }
             applyTheme();
-        } // end function loadTheme
-        // end QUẢN LÝ GIAO DIỆN CHỦ ĐỀ & DARK MODE
+        } // end function loadTheme()
 
-
-        // ==========================================================================
-        // TÁC VỤ 9: ĐỒNG BỘ TOÀN DIỆN VÀ KHÔI PHỤC HỆ THỐNG GỐC
-        // ==========================================================================
         function syncAllDataFromSheet() {
             if (!navigator.onLine) { alert("Thiết bị đang ngoại tuyến!"); return; }
             const syncBtn = document.getElementById("btn-sync-data"); 
@@ -1323,93 +1370,81 @@ input:checked + .slider:before { transform: translateX(22px); }
             syncBtn.style.opacity = "0.7";
         
             getAllTransactions(localTransactions => {
-                const unsyncedTx = localTransactions.filter(t => t.synced === 0);
+                const unsynced = localTransactions.filter(t => t.synced === 0);
                 
-                const proceedToRemindersSync = () => {
-                    getAllReminders(localReminders => {
-                        const unsyncedRem = localReminders.filter(r => r.synced === 0);
-                        
-                        const proceedToDownload = () => {
-                            fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
-                            .then(res => res.json())
-                            .then(resData => {
-                                if (resData.status === "success" && resData.data) {
-                                    const serverFamily = resData.data.family || [];
-                                    const serverTransactions = resData.data.transactions || [];
-                                    const serverReminders = resData.data.reminders || [];
-                
-                                    localFamilyData = serverFamily;
-                                    if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "family_data", value: serverFamily });
-                
-                                    // Tải & Ghi đè thông minh dữ liệu Thu/Chi
-                                    if (db && serverTransactions.length > 0) {
-                                        const tx = db.transaction("transactions", "readwrite");
-                                        const store = tx.objectStore("transactions");
-                                        serverTransactions.forEach(sTx => {
-                                            const isDuplicate = localTransactions.some(lTx => 
-                                                lTx.timestamp === sTx.timestamp && 
-                                                parseFloat(lTx.amount) === parseFloat(sTx.amount)
-                                            );
-                                            if (!isDuplicate) { sTx.synced = 1; store.add(sTx); }
-                                        });
-                                    }
-
-                                    // Tải & Đồng bộ danh sách Nhắc hẹn
-                                    if (db && serverReminders.length > 0) {
-                                        const rTx = db.transaction("reminders", "readwrite");
-                                        const rStore = rTx.objectStore("reminders");
-                                        serverReminders.forEach(sRem => {
-                                            const isDuplicate = localReminders.some(lRem => 
-                                                lRem.content === sRem.content && lRem.startDate === sRem.startDate
-                                            );
-                                            if (!isDuplicate) {
-                                                sRem.synced = 1;
-                                                sRem.status = sRem.status || "ENABLED"; // Ép quy chuẩn trạng thái mới
-                                                rStore.add(sRem);
-                                            }
-                                        });
-                                    }
-                
-                                    const now = new Date();
-                                    const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                                    if(document.getElementById("sync-status")) document.getElementById("sync-status").innerHTML = `Last sync: ${timeString}`;
-                                    if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "last_sync_time", value: timeString });
+                const proceedToDownload = () => {
+                    fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
+                    .then(res => res.json())
+                    .then(resData => {
+                        if (resData.status === "success" && resData.data) {
+                            const serverFamily = resData.data.family || [];
+                            const serverTransactions = resData.data.transactions || [];
+        
+                            localFamilyData = serverFamily;
+                            if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "family_data", value: serverFamily });
+        
+                            if (db && serverTransactions.length > 0) {
+                                const tx = db.transaction("transactions", "readwrite");
+                                const store = tx.objectStore("transactions");
+                                
+                                serverTransactions.forEach(sTx => {
+                                    const isDuplicate = localTransactions.some(lTx => 
+                                        lTx.timestamp === sTx.timestamp && 
+                                        parseFloat(lTx.amount) === parseFloat(sTx.amount)
+                                    );
                                     
-                                    alert("✅ Đồng bộ thành công! Đã cập nhật Thu/Chi, Nhắc hẹn và Lý lịch gia đình.");
-                                } else {
-                                    alert("⚠️ Đồng bộ xong nhưng định dạng phản hồi từ Cloud Sheet không hợp lệ.");
-                                }
-                            })
-                            .catch(() => { alert("❌ Lỗi tải dữ liệu cơ sở từ Google Sheet."); })
-                            .finally(() => {
-                                syncBtn.disabled = false; syncBtn.innerHTML = originalText; syncBtn.style.opacity = "1";
-                                initFormOptions(); renderChartsAndStats(); renderRemindersList();
-                            });
-                        };
-                        
-                        if (unsyncedRem.length > 0) {
-                            fetch(CONFIG.apiEndpoint, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                                body: JSON.stringify({ action: 'syncReminders', data: unsyncedRem })
-                            }).then(() => proceedToDownload()).catch(() => proceedToDownload());
+                                    if (!isDuplicate) {
+                                        sTx.synced = 1; 
+                                        store.add(sTx);
+                                    }
+                                });
+                            }
+        
+                            const now = new Date();
+                            const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            if(document.getElementById("sync-status")) document.getElementById("sync-status").innerHTML = `Last sync: ${timeString}`;
+                            if (db) db.transaction("settings", "readwrite").objectStore("settings").put({ key: "last_sync_time", value: timeString });
+                            
+                            alert("✅ Đồng bộ thành công! Đã cập nhật Thu/Chi và Lý lịch gia đình mới nhất, tự động loại bỏ trùng lặp.");
                         } else {
-                            proceedToDownload();
+                            alert("⚠️ Đồng bộ xong nhưng định dạng dữ liệu phản hồi từ Sheet không đúng.");
                         }
+                    })
+                    .catch(() => { 
+                        alert("❌ Lỗi kết nối! Không thể tải dữ liệu từ Google Sheet xuống."); 
+                    })
+                    .finally(() => {
+                        syncBtn.disabled = false; 
+                        syncBtn.innerHTML = originalText; 
+                        syncBtn.style.opacity = "1";
+                        initFormOptions(); 
+                        renderChartsAndStats();
                     });
                 };
         
-                if (unsyncedTx.length > 0 && CONFIG.apiEndpoint) {
+                if (unsynced.length > 0 && CONFIG.apiEndpoint) {
                     fetch(CONFIG.apiEndpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                        body: JSON.stringify({ action: 'syncTransactions', data: unsyncedTx })
-                    }).then(() => proceedToRemindersSync()).catch(() => proceedToRemindersSync());
+                        body: JSON.stringify({ action: 'syncTransactions', data: unsynced })
+                    })
+                    .then(res => res.json())
+                    .then(resData => {
+                        if (resData.status === "success") {
+                            const tx = db.transaction("transactions", "readwrite");
+                            const store = tx.objectStore("transactions");
+                            unsynced.forEach(t => { t.synced = 1; store.put(t); });
+                        }
+                        proceedToDownload();
+                    })
+                    .catch(() => {
+                        proceedToDownload();
+                    });
                 } else {
-                    proceedToRemindersSync();
+                    proceedToDownload();
                 }
             });
-        } // end function syncAllDataFromSheet
+        }
 
         function resetAppCompletely() {
             if (!confirm("⚠️ Bạn có chắc chắn muốn xóa toàn bộ lịch sử thiết bị không?\nHành động này không thể hoàn tác!")) return;
@@ -1455,8 +1490,15 @@ input:checked + .slider:before { transform: translateX(22px); }
                         }).catch(() => { alert("Lỗi kết nối đến máy chủ xác thực!"); });
                 };
             };
+            
             securePrompt();
-        } // end function resetAppCompletely
+        }
+
+        window.onscroll = function() {
+            const btn = document.getElementById("scrollTopBtn");
+            if(btn) btn.style.display = (document.body.scrollTop > 250 || document.documentElement.scrollTop > 250) ? "flex" : "none";
+        };
+        function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
         function loadInitialSettings() {
             db.transaction("settings", "readonly").objectStore("settings").getAll().onsuccess = function(e) {
@@ -1470,23 +1512,10 @@ input:checked + .slider:before { transform: translateX(22px); }
                 loadTheme();
                 initFormOptions(); 
                 renderChartsAndStats();
-                renderRemindersList();
             };
-        } // end function loadInitialSettings
+        }
 
-        window.onscroll = function() {
-            const btn = document.getElementById("scrollTopBtn");
-            if(btn) btn.style.display = (document.body.scrollTop > 250 || document.documentElement.scrollTop > 250) ? "flex" : "none";
-        };
-        
-        function scrollToTop() { 
-            window.scrollTo({ top: 0, behavior: 'smooth' }); 
-        } // end function scrollToTop
-
-        window.onload = function() { 
-            initDB(); 
-        };
-        // end ĐỒNG BỘ TOÀN DIỆN VÀ KHÔI PHỤC HỆ THỐNG GỐC
+        window.onload = function() { initDB(); };
     </script>
 </body>
 </html>
