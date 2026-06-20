@@ -660,11 +660,8 @@ function renderFamilyGrid(members) {
     
     container.innerHTML = "";
     
-    // Bỏ qua dòng header (dòng đầu tiên) - đã xử lý ở readFamilySheetData với range A4:S
     members.forEach(m => {
-        // Chỉ hiển thị nếu có nickname hoặc fullname hợp lệ
         const displayName = m.nickname && m.nickname !== "-" ? m.nickname : (m.fullname || "Thành viên");
-        // Bỏ qua nếu tên hiển thị là "NICKNAME" (header)
         if (displayName.toUpperCase() === "NICKNAME") return;
         
         let btn = document.createElement("button");
@@ -856,17 +853,26 @@ function saveReminder(event) {
         status: "ENABLED"
     };
 
+    console.log("Lưu reminder:", reminderItem);
+    
     const tx = db.transaction("reminders", "readwrite");
-    tx.objectStore("reminders").add(reminderItem);
-    tx.oncomplete = function() {
+    const store = tx.objectStore("reminders");
+    const request = store.add(reminderItem);
+    
+    request.onsuccess = function(e) {
+        console.log("Reminder đã lưu với id:", e.target.result);
         alert("Đã thêm nhắc hẹn cục bộ!");
         document.getElementById("form-nhachen").reset();
         toggleCustomReminderFields();
         initReminderDateOptions();
         generateRemindersInterface();
+        
+        // Gọi sync ngay lập tức
         syncRemindersToSheet();
     };
-    tx.onerror = function(e) {
+    
+    request.onerror = function(e) {
+        console.error("Lỗi lưu reminder:", e.target.error);
         alert("Lỗi lưu nhắc hẹn: " + e.target.error);
     };
 } // end function saveReminder
@@ -1010,8 +1016,19 @@ function startDailyReminderCheck() {
     }, 3000);
 } // end function startDailyReminderCheck
 
+// =========================================================================
+// SYNC REMINDERS TO SHEET - ĐÃ SỬA
+// =========================================================================
 function syncRemindersToSheet() {
-    if (!navigator.onLine || !CONFIG.apiEndpoint) return;
+    if (!navigator.onLine || !CONFIG.apiEndpoint) {
+        console.log("Không thể sync: offline hoặc không có endpoint");
+        return;
+    }
+    
+    if (!db) {
+        console.log("Chưa có database");
+        return;
+    }
     
     const tx = db.transaction("reminders", "readonly");
     const store = tx.objectStore("reminders");
@@ -1020,25 +1037,38 @@ function syncRemindersToSheet() {
     request.onsuccess = function(e) {
         const list = e.target.result || [];
         const unsynced = list.filter(r => r.synced === 0);
+        
+        console.log("Số lượng reminder chưa sync:", unsynced.length);
+        
         if (unsynced.length === 0) return;
 
-        // Gửi đúng cấu trúc dữ liệu để ghi vào sheet REMINDERS
+        // Chuyển đổi dữ liệu sang định dạng đúng cho Google Sheet
+        const dataToSend = unsynced.map(r => ({
+            ngayCanNhac: r.startDate || "",
+            noiDungNhac: r.content || "",
+            tanSuat: r.frequency || "ONCE",
+            ngayBatDau: r.startDate || "",
+            trangThai: r.status || "ENABLED"
+        }));
+        
+        console.log("Dữ liệu gửi lên server:", JSON.stringify(dataToSend));
+        
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
             body: JSON.stringify({
                 action: 'syncReminders',
-                data: unsynced.map(r => ({
-                    ngayCanNhac: r.startDate,  // NGÀY CẦN NHẮC
-                    noiDungNhac: r.content,    // NỘI DUNG NHẮC
-                    tanSuat: r.frequency,      // TẦN SUẤT
-                    ngayBatDau: r.startDate,   // NGÀY BẮT ĐẦU
-                    trangThai: r.status || "ENABLED" // TRẠNG THÁI
-                }))
+                data: dataToSend
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            console.log("Response status:", res.status);
+            return res.json();
+        })
         .then(resData => {
+            console.log("Response data:", resData);
             if (resData.status === "success") {
                 const tx2 = db.transaction("reminders", "readwrite");
                 const store2 = tx2.objectStore("reminders");
@@ -1046,9 +1076,18 @@ function syncRemindersToSheet() {
                     r.synced = 1;
                     store2.put(r);
                 });
+                console.log("Đã đánh dấu reminders đã sync");
+            } else {
+                console.error("Lỗi sync reminders:", resData.message);
             }
         })
-        .catch(() => {});
+        .catch(err => {
+            console.error("Lỗi fetch syncReminders:", err);
+        });
+    };
+    
+    request.onerror = function(e) {
+        console.error("Lỗi đọc reminders từ IndexedDB:", e.target.error);
     };
 } // end function syncRemindersToSheet
 
@@ -1085,14 +1124,12 @@ function applyTheme() {
 
 function loadTheme() {
     const savedDark = localStorage.getItem('darkMode');
-    // Mặc định là dark mode
     const isDark = savedDark !== null ? savedDark === 'true' : true;
     
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     const toggle = document.getElementById('darkModeToggle');
     if (toggle) toggle.checked = isDark;
     
-    // Mặc định màu vàng
     let savedColor = localStorage.getItem('themeColor') || "#FFC107";
     const colorSelect = document.getElementById("setting-color");
     if (colorSelect) {
@@ -1128,6 +1165,7 @@ function syncAllDataFromSheet() {
                         const serverTransactions = resData.data.transactions || [];
                         const serverReminders = resData.data.reminders || [];
 
+                        // Cập nhật family
                         localFamilyData = serverFamily;
                         if (db) {
                             db.transaction("settings", "readwrite")
@@ -1135,6 +1173,7 @@ function syncAllDataFromSheet() {
                               .put({ key: "family_data", value: serverFamily });
                         }
 
+                        // Cập nhật transactions
                         if (db && serverTransactions.length > 0) {
                             const tx = db.transaction("transactions", "readwrite");
                             const store = tx.objectStore("transactions");
@@ -1151,24 +1190,31 @@ function syncAllDataFromSheet() {
                             });
                         }
 
+                        // Cập nhật reminders
                         if (db && serverReminders.length > 0) {
                             const tx = db.transaction("reminders", "readwrite");
                             const store = tx.objectStore("reminders");
-                            serverReminders.forEach(sRem => {
-                                const isDuplicate = localReminderData.some(lRem =>
-                                    lRem.startDate === sRem.ngayBatDau && 
-                                    lRem.content === sRem.noiDungNhac
-                                );
-                                if (!isDuplicate) {
-                                    store.add({
-                                        content: sRem.noiDungNhac,
-                                        startDate: sRem.ngayBatDau,
-                                        frequency: sRem.tanSuat || "ONCE",
-                                        status: sRem.trangThai || "ENABLED",
-                                        synced: 1
-                                    });
-                                }
-                            });
+                            
+                            const getExisting = store.getAll();
+                            getExisting.onsuccess = function(e) {
+                                const existingList = e.target.result || [];
+                                
+                                serverReminders.forEach(sRem => {
+                                    const isDuplicate = existingList.some(lRem =>
+                                        lRem.startDate === sRem.ngayBatDau && 
+                                        lRem.content === sRem.noiDungNhac
+                                    );
+                                    if (!isDuplicate) {
+                                        store.add({
+                                            content: sRem.noiDungNhac,
+                                            startDate: sRem.ngayBatDau,
+                                            frequency: sRem.tanSuat || "ONCE",
+                                            status: sRem.trangThai || "ENABLED",
+                                            synced: 1
+                                        });
+                                    }
+                                });
+                            };
                         }
 
                         const now = new Date();
@@ -1236,6 +1282,9 @@ function syncAllDataFromSheet() {
     });
 } // end function syncAllDataFromSheet
 
+// =========================================================================
+// RESET APP
+// =========================================================================
 function resetAppCompletely() {
     if (!confirm("⚠️ Bạn có chắc chắn muốn xóa toàn bộ lịch sử thiết bị không?\nHành động này không thể hoàn tác!")) return;
     
