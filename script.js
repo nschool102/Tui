@@ -688,7 +688,7 @@ function syncRemindersToSheet() {
                 unsynced.forEach(r => { r.synced = 1; store.put(r); });
             }
         }).catch(()=>{});
-    });
+    }; 
 }
 
 // ==========================================================================
