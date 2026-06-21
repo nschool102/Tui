@@ -41,6 +41,31 @@ let isSyncing = false;
 let notificationCheckInterval = null;
 
 // =========================================================================
+// HÀM CHUYỂN ĐỔI SENTENCE CASE
+// =========================================================================
+/**
+ * Chuyển đổi chuỗi sang sentence case:
+ * - Chữ cái đầu tiên của chuỗi được viết hoa
+ * - Các chữ cái khác giữ nguyên (không thay đổi)
+ * - Nếu chuỗi rỗng hoặc null thì trả về chuỗi rỗng
+ * 
+ * Ví dụ:
+ * - "đóng tiền nước" -> "Đóng tiền nước"
+ * - "KHÁM ĐỊNH KỲ" -> "KHÁM ĐỊNH KỲ" (giữ nguyên vì đã viết hoa)
+ * - "mua sắm TẾT" -> "Mua sắm TẾT"
+ */
+function toSentenceCase(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    if (str.trim() === '') return str;
+    
+    // Nếu toàn bộ chuỗi đã viết hoa thì giữ nguyên
+    if (str === str.toUpperCase()) return str;
+    
+    // Viết hoa chữ cái đầu tiên, giữ nguyên phần còn lại
+    return str.charAt(0).toUpperCase() + str.slice(1);
+} // end function toSentenceCase
+
+// =========================================================================
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
 function initDB() {
@@ -224,12 +249,15 @@ function saveTransaction(event, mode) {
     if (mode === 'chi') amount = -Math.abs(amount);
     if (mode === 'thu') amount = Math.abs(amount);
 
+    // Chuyển đổi GHI CHÚ sang sentence case (viết hoa chữ cái đầu tiên)
+    const formattedNote = toSentenceCase(note);
+
     const transaction = {
         timestamp: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
         type: type,
         subtype: subtype,
         amount: amount,
-        note: note || "", // Ghi chú luôn được lưu vào cột E (GHI CHÚ) khi đồng bộ lên sheet TRANSACTIONS
+        note: formattedNote, // Ghi chú đã được format sentence case
         synced: 0
     };
 
@@ -282,7 +310,7 @@ function syncToGoogleSheets() {
                     type: t.type,
                     subtype: t.subtype,
                     amount: t.amount,
-                    note: t.note
+                    note: t.note // Ghi chú đã được format sentence case
                 }))
             })
         })
@@ -343,9 +371,6 @@ function renderPieChart(canvasId, labels, dataset, customColors = null) {
                     labels: {
                         font: { size: 13, weight: 'bold' },
                         padding: 12,
-                        // generateLabels được ghi đè trực tiếp để gán màu chữ legend = đúng màu của
-                        // từng phần biểu đồ (fontColor mỗi item), tránh phụ thuộc vào callback "color"
-                        // mặc định (có thể bị nhầm thành trắng/nhạt trên nền sáng ở light mode).
                         generateLabels: function(chart) {
                             const original = Chart.overrides.pie.plugins.legend.labels.generateLabels(chart);
                             const bgColors = chart.data.datasets[0].backgroundColor;
@@ -385,10 +410,6 @@ function renderPieChart(canvasId, labels, dataset, customColors = null) {
     });
 } // end function renderPieChart
 
-// Trả về màu chữ legend dựa trên màu nền của slice, đảm bảo luôn đọc được trên cả light/dark mode.
-// Nếu màu slice quá sáng gần với màu nền card sáng (light mode), giữ nguyên màu slice vì nó vẫn
-// có đủ độ tương phản trên nền card (trắng/xám nhạt) lẫn nền tối - màu slice luôn bão hòa, không
-// phải trắng/đen nên không bao giờ trùng màu nền ở cả 2 mode.
 function getReadableLegendColor(hexColor) {
     return hexColor || (document.documentElement.getAttribute('data-theme') === 'dark' ? '#ffffff' : '#333333');
 } // end function getReadableLegendColor
@@ -639,7 +660,6 @@ function verifyFamilyAuth() {
         return;
     }
 
-    // Mật khẩu xác thực được kiểm tra với CONFIG_APP!A1 trên Google Sheet
     fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(inputPass.trim())}`)
         .then(res => res.json())
         .then(res => {
@@ -809,29 +829,8 @@ function closeModal() {
 // =========================================================================
 // NHẮC HẸN - TAB NHẮC HẸN
 // =========================================================================
-// Cấu trúc 1 reminder lưu cục bộ (IndexedDB "reminders"):
-//   content            : Nội dung nhắc hẹn
-//   frequency          : "ONCE" | "DAILY" | "WEEKLY" | "MONTHLY" | "CUSTOM"
-//   everyValue         : số lượng (chỉ dùng khi frequency = CUSTOM)
-//   everyUnit          : "DAYS" | "WEEKS" | "MONTHS" (chỉ dùng khi frequency = CUSTOM)
-//   startDate          : Ngày bắt đầu (yyyy-MM-dd)
-//   status             : "ENABLED" | "DISABLED"
-//   nextReminderDate   : Ngày nhắc tiếp theo (yyyy-MM-dd) - được tính lại sau mỗi lần nhắc
-//   lastTriggeredAt    : Lần nhắc cuối (ISO datetime) - thời điểm thông báo đẩy gần nhất
-//   synced             : 0 = chưa đồng bộ lên sheet REMINDERS, 1 = đã đồng bộ
-//
-// Khi ghi lên sheet REMINDERS, thứ tự cột là:
-//   A.NỘI DUNG NHẮC | B.TẦN SUẤT | C.NGÀY BẮT ĐẦU | D.TRẠNG THÁI | E.NGÀY NHẮC TIẾP THEO | F.LẦN NHẮC CUỐI
-// Với CUSTOM, cột TẦN SUẤT được mã hóa thành "CUSTOM:<everyValue>:<everyUnit>" (ví dụ "CUSTOM:2:WEEKS")
-// để không cần thêm cột riêng, và được tách lại khi đọc dữ liệu về app.
-
 const VALID_REMINDER_FREQUENCIES = ["ONCE", "DAILY", "WEEKLY", "MONTHLY", "CUSTOM"];
 
-// Dọn dẹp các record reminder bị hỏng còn sót lại trong IndexedDB từ các phiên bản code cũ
-// (ví dụ: "content" rỗng/không hợp lệ, "frequency" không nằm trong danh sách hợp lệ, hoặc
-// "startDate"/"nextReminderDate" không phải dạng ngày hợp lệ). Hàm này CHỈ xóa trong object
-// store "reminders", không đụng đến "transactions" hay dữ liệu family lưu trong "settings".
-// Chạy 1 lần ngay sau khi mở IndexedDB, trước khi giao diện render danh sách nhắc hẹn.
 function cleanupCorruptedReminders(callback) {
     if (!db || !db.objectStoreNames.contains("reminders")) {
         if (callback) callback();
@@ -855,7 +854,7 @@ function cleanupCorruptedReminders(callback) {
 
         tx.oncomplete = function() {
             if (removedCount > 0) {
-                console.log(`Đã tự động xóa ${removedCount} reminder bị hỏng (dữ liệu cũ không đúng cấu trúc).`);
+                console.log(`Đã tự động xóa ${removedCount} reminder bị hỏng.`);
             }
             if (callback) callback();
         };
@@ -870,27 +869,15 @@ function cleanupCorruptedReminders(callback) {
     };
 } // end function cleanupCorruptedReminders
 
-// Kiểm tra 1 reminder record có hợp lệ hay không, theo đúng cấu trúc dữ liệu hiện tại.
 function isCorruptedReminder(r) {
     if (!r || typeof r !== 'object') return true;
-
-    // content phải là chuỗi có nội dung thật, không phải rỗng/undefined
     if (!r.content || typeof r.content !== 'string' || !r.content.trim()) return true;
-
-    // frequency phải nằm trong danh sách hợp lệ (không lệch cột thành "MONTHLY"/"WEEKLY" do bug cũ
-    // hoặc giá trị khác như "ENABLED"/"DISABLED" bị gán nhầm field)
     if (!VALID_REMINDER_FREQUENCIES.includes(r.frequency)) return true;
-
-    // startDate phải là chuỗi ngày hợp lệ dạng yyyy-MM-dd (không phải "ENABLED" hay datetime ISO lệch cột)
     if (!isValidDateOnlyString(r.startDate)) return true;
-
-    // Nếu có nextReminderDate thì cũng phải là ngày hợp lệ (không phải chuỗi ISO datetime lệch cột)
     if (r.nextReminderDate && !isValidDateOnlyString(r.nextReminderDate)) return true;
-
     return false;
 } // end function isCorruptedReminder
 
-// Kiểm tra chuỗi có đúng định dạng ngày yyyy-MM-dd và là ngày hợp lệ không
 function isValidDateOnlyString(str) {
     if (!str || typeof str !== 'string') return false;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
@@ -950,8 +937,6 @@ function triggerPushNotification(title, body) {
     }
 } // end function triggerPushNotification
 
-// Tính ngày nhắc kế tiếp dựa trên tần suất, dùng để cập nhật "NGÀY NHẮC TIẾP THEO"
-// sau khi một lần nhắc (cho ngày hiện tại) đã được kích hoạt.
 function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) {
     const d = new Date(fromDateStr);
     d.setHours(0, 0, 0, 0);
@@ -968,7 +953,6 @@ function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) 
         else if (everyUnit === "WEEKS") d.setDate(d.getDate() + (n * 7));
         else if (everyUnit === "MONTHS") d.setMonth(d.getMonth() + n);
     } else {
-        // ONCE: không có ngày kế tiếp
         return null;
     }
 
@@ -999,15 +983,18 @@ function saveReminder(event) {
         return;
     }
 
+    // Chuyển đổi NỘI DUNG NHẮC sang sentence case (viết hoa chữ cái đầu tiên)
+    const formattedContent = toSentenceCase(content);
+
     const startDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 
     const reminderItem = {
-        content: content,
+        content: formattedContent, // Nội dung đã được format sentence case
         startDate: startDateStr,
         frequency: frequency,
         everyValue: frequency === "CUSTOM" ? parseInt(everyVal) : null,
         everyUnit: frequency === "CUSTOM" ? everyUnit : null,
-        nextReminderDate: startDateStr, // Lần đầu, ngày nhắc tiếp theo = ngày bắt đầu
+        nextReminderDate: startDateStr,
         lastTriggeredAt: "",
         synced: 0,
         status: "ENABLED"
@@ -1027,7 +1014,6 @@ function saveReminder(event) {
         initReminderDateOptions();
         generateRemindersInterface();
 
-        // Gọi sync ngay lập tức
         syncRemindersToSheet();
     };
 
@@ -1113,7 +1099,6 @@ function renderRemindersList(list) {
     container.innerHTML = html;
 } // end function renderRemindersList
 
-// Hiển thị nhãn tần suất dễ đọc, gồm cả trường hợp CUSTOM (ví dụ "Mỗi 2 Tuần")
 function formatFrequencyLabel(r) {
     const freqMap = {
         'ONCE': 'Một lần',
@@ -1129,9 +1114,6 @@ function formatFrequencyLabel(r) {
     return freqMap[r.frequency] || r.frequency || "ONCE";
 } // end function formatFrequencyLabel
 
-// Kiểm tra danh sách nhắc hẹn mỗi ngày: nếu hôm nay là 1 ngày TRƯỚC ngày cần nhắc
-// thì tạo thông báo đẩy báo trước; đến đúng ngày cần nhắc thì tạo thông báo đẩy lần nữa.
-// Sau khi đến đúng ngày và đã nhắc, tự động tính lại "NGÀY NHẮC TIẾP THEO" cho các tần suất lặp lại.
 function checkAndTriggerReminders(reminders) {
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -1151,18 +1133,15 @@ function checkAndTriggerReminders(reminders) {
         const targetDate = new Date(targetDateStr);
         targetDate.setHours(0,0,0,0);
 
-        // Nhắc hẹn ONCE đã qua ngày thì không xử lý nữa
         if (r.frequency === "ONCE" && targetDate < today) return;
 
         const alreadyTriggeredToday = r.lastTriggeredAt && r.lastTriggeredAt.slice(0, 10) === todayStr;
 
         if (targetDateStr === tomorrowStr) {
-            // Nhắc trước 1 ngày
             triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
         }
 
         if (targetDateStr === todayStr && !alreadyTriggeredToday) {
-            // Đúng ngày cần nhắc: tạo thông báo đẩy và cập nhật LẦN NHẮC CUỐI
             triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
 
             r.lastTriggeredAt = new Date().toISOString();
@@ -1170,10 +1149,8 @@ function checkAndTriggerReminders(reminders) {
             hasChanges = true;
 
             if (r.frequency === "ONCE") {
-                // Một lần thì tắt sau khi đã nhắc
                 r.status = "DISABLED";
             } else {
-                // Các tần suất lặp lại: tính lại ngày nhắc tiếp theo
                 const nextDate = computeNextReminderDate(todayStr, r.frequency, r.everyValue, r.everyUnit);
                 if (nextDate) r.nextReminderDate = nextDate;
             }
@@ -1208,7 +1185,6 @@ function startDailyReminderCheck() {
         clearInterval(notificationCheckInterval);
     }
 
-    // Kiểm tra định kỳ mỗi 30 phút trong lúc app đang mở (đại diện cho việc "đọc dữ liệu hàng ngày")
     notificationCheckInterval = setInterval(() => {
         if (db) {
             const tx = db.transaction("reminders", "readonly");
@@ -1253,9 +1229,8 @@ function syncRemindersToSheet() {
 
         if (unsynced.length === 0) return;
 
-        // Mã hóa CUSTOM thành "CUSTOM:<n>:<unit>" để ghi gọn vào 1 cột TẦN SUẤT trên sheet
         const dataToSend = unsynced.map(r => ({
-            content: r.content || "",
+            content: r.content || "", // Nội dung đã được format sentence case
             frequency: encodeFrequencyForSheet(r),
             startDate: r.startDate || "",
             status: r.status || "ENABLED",
@@ -1303,7 +1278,6 @@ function syncRemindersToSheet() {
     };
 } // end function syncRemindersToSheet
 
-// Mã hóa tần suất CUSTOM thành chuỗi "CUSTOM:<n>:<unit>" để lưu gọn trong 1 cột trên sheet
 function encodeFrequencyForSheet(r) {
     if (r.frequency === "CUSTOM") {
         return `CUSTOM:${r.everyValue || 1}:${r.everyUnit || 'DAYS'}`;
@@ -1311,7 +1285,6 @@ function encodeFrequencyForSheet(r) {
     return r.frequency || "ONCE";
 } // end function encodeFrequencyForSheet
 
-// Giải mã chuỗi tần suất đọc từ sheet về lại { frequency, everyValue, everyUnit }
 function decodeFrequencyFromSheet(rawFrequency) {
     if (rawFrequency && rawFrequency.toString().startsWith("CUSTOM:")) {
         const parts = rawFrequency.toString().split(":");
@@ -1357,7 +1330,6 @@ function applyTheme() {
 } // end function applyTheme
 
 function loadTheme() {
-    // Theme mặc định: Vàng + Dark Mode (theo yêu cầu mục a), chỉ ghi đè nếu user đã từng đổi
     const savedDark = localStorage.getItem('darkMode');
     const isDark = savedDark !== null ? savedDark === 'true' : DEFAULT_DARK_MODE;
 
@@ -1375,11 +1347,8 @@ function loadTheme() {
 // end CÀI ĐẶT GIAO DIỆN (THEMES)
 
 // =========================================================================
-// ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS (Nút "Đồng bộ dữ liệu")
+// ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS
 // =========================================================================
-// Quy trình đồng bộ 2 chiều khi bấm nút Đồng bộ:
-//   1. Đẩy (upload) các giao dịch (TRANSACTIONS) và nhắc hẹn (REMINDERS) chưa đồng bộ từ thiết bị lên Google Sheet
-//   2. Sau khi đẩy xong, tải (download) toàn bộ dữ liệu TRANSACTIONS, REMINDERS, FAMILY mới nhất từ Google Sheet về app
 function syncAllDataFromSheet() {
     if (!navigator.onLine) {
         alert("Thiết bị đang ngoại tuyến! Vui lòng kết nối mạng để đồng bộ.");
@@ -1392,7 +1361,6 @@ function syncAllDataFromSheet() {
     syncBtn.innerHTML = "⏳ Đang đồng bộ...";
     syncBtn.style.opacity = "0.7";
 
-    // ---- BƯỚC 1: ĐẨY DỮ LIỆU THIẾT BỊ -> SHEET (TRANSACTIONS + REMINDERS) ----
     getAllTransactions(localTransactions => {
         const unsyncedTx = localTransactions.filter(t => t.synced === 0);
 
@@ -1411,7 +1379,7 @@ function syncAllDataFromSheet() {
                         type: t.type,
                         subtype: t.subtype,
                         amount: t.amount,
-                        note: t.note
+                        note: t.note // Ghi chú đã được format sentence case
                     }))
                 })
             })
@@ -1447,7 +1415,7 @@ function syncAllDataFromSheet() {
                     body: JSON.stringify({
                         action: 'syncReminders',
                         data: unsyncedRem.map(r => ({
-                            content: r.content || "",
+                            content: r.content || "", // Nội dung đã được format sentence case
                             frequency: encodeFrequencyForSheet(r),
                             startDate: r.startDate || "",
                             status: r.status || "ENABLED",
@@ -1473,7 +1441,6 @@ function syncAllDataFromSheet() {
             req.onerror = () => resolve();
         });
 
-        // ---- BƯỚC 2: TẢI DỮ LIỆU SHEET -> THIẾT BỊ (TRANSACTIONS + REMINDERS + FAMILY) ----
         const downloadData = () => {
             fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
                 .then(res => res.json())
@@ -1483,7 +1450,6 @@ function syncAllDataFromSheet() {
                         const serverTransactions = resData.data.transactions || [];
                         const serverReminders = resData.data.reminders || [];
 
-                        // Cập nhật FAMILY
                         localFamilyData = serverFamily;
                         if (db) {
                             db.transaction("settings", "readwrite")
@@ -1491,7 +1457,6 @@ function syncAllDataFromSheet() {
                               .put({ key: "family_data", value: serverFamily });
                         }
 
-                        // Cập nhật TRANSACTIONS (chỉ thêm các giao dịch chưa có cục bộ)
                         if (db && serverTransactions.length > 0) {
                             const tx = db.transaction("transactions", "readwrite");
                             const store = tx.objectStore("transactions");
@@ -1508,7 +1473,6 @@ function syncAllDataFromSheet() {
                             });
                         }
 
-                        // Cập nhật REMINDERS (chỉ thêm các nhắc hẹn chưa có cục bộ, giải mã CUSTOM)
                         if (db && serverReminders.length > 0) {
                             const tx = db.transaction("reminders", "readwrite");
                             const store = tx.objectStore("reminders");
@@ -1575,7 +1539,7 @@ function syncAllDataFromSheet() {
 // end ĐỒNG BỘ TOÀN DIỆN
 
 // =========================================================================
-// RESET APP - TAB SETTINGS (Nút "Xóa sạch dữ liệu & Đặt lại App")
+// RESET APP - TAB SETTINGS
 // =========================================================================
 function resetAppCompletely() {
     if (!confirm("⚠️ Bạn có chắc chắn muốn xóa toàn bộ lịch sử thiết bị không?\nHành động này không thể hoàn tác!")) return;
@@ -1607,7 +1571,6 @@ function resetAppCompletely() {
             return;
         }
 
-        // Mật khẩu phê duyệt xóa được kiểm tra với CONFIG_APP!A1 trên Google Sheet (dùng chung với mật khẩu tab FAMILY)
         fetch(`${CONFIG.apiEndpoint}?action=checkResetPassword&password=${encodeURIComponent(passVal.trim())}`)
             .then(res => res.json())
             .then(res => {
