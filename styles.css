@@ -532,7 +532,6 @@ input:checked + .slider:before {
 
 .theme-text { color: var(--theme-color) !important; }
 .theme-bg { background-color: var(--theme-color) !important; color: var(--text-on-theme) !important; }
-
 /* ==========================================================================
    17. APP INFO MODAL
    ========================================================================== */
@@ -569,7 +568,6 @@ input:checked + .slider:before {
     word-break: break-word;
 }
 
-/* Nút thông tin ứng dụng trong card */
 #btn-app-info {
     transition: all 0.3s ease;
     border: 1px solid transparent;
@@ -584,7 +582,6 @@ input:checked + .slider:before {
 #btn-app-info:active {
     transform: scale(0.98);
 }
-/* end APP INFO MODAL */
 
 /* ==========================================================================
    18. RESPONSIVE
@@ -633,4 +630,42 @@ input:checked + .slider:before {
         padding: 6px 4px;
     }
 }
-/* end RESPONSIVE */
+
+/* ==========================================================================
+   19. MODAL ANIMATION
+   ========================================================================== */
+.modal {
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-close {
+    transition: transform 0.3s ease;
+}
+
+.modal-close:hover {
+    transform: rotate(90deg);
+}
