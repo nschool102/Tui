@@ -29,7 +29,7 @@ const CATEGORIES = {
 
 const PALETTE = ["#4CAF50", "#8BC34A", "#2196F3", "#E91E63", "#9C27B0", "#F44336", "#FF9800", "#FFEB3B"];
 
-// Theme mặc định: Vàng (#FFC107) + Dark Mode bật sẵn (theo yêu cầu mục a)
+// Theme mặc định: Vàng (#FFC107) + Dark Mode bật sẵn
 const DEFAULT_THEME_COLOR = "#FFC107";
 const DEFAULT_DARK_MODE = true;
 
@@ -41,18 +41,263 @@ let isSyncing = false;
 let notificationCheckInterval = null;
 
 // =========================================================================
+// THÔNG BÁO ĐẨY (PUSH NOTIFICATION)
+// =========================================================================
+
+// Yêu cầu quyền thông báo từ người dùng
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("Trình duyệt không hỗ trợ Notification");
+        return;
+    }
+    
+    if (Notification.permission === "default") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                console.log("Đã được cấp quyền thông báo");
+                registerServiceWorker();
+            } else {
+                console.log("Từ chối quyền thông báo");
+            }
+        });
+    } else if (Notification.permission === "granted") {
+        registerServiceWorker();
+    }
+} // end function requestNotificationPermission
+
+// Đăng ký Service Worker
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(reg => {
+                console.log('Service Worker đăng ký thành công:', reg);
+            })
+            .catch(err => {
+                console.log('Lỗi đăng ký Service Worker:', err);
+            });
+    }
+} // end function registerServiceWorker
+
+// Gửi thông báo đẩy
+function triggerPushNotification(title, body) {
+    if (!("Notification" in window)) {
+        console.log("Trình duyệt không hỗ trợ Notification");
+        return;
+    }
+    
+    if (Notification.permission === "granted") {
+        try {
+            // Gửi qua Service Worker nếu có
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: title,
+                    body: body,
+                    icon: 'icon-192.png'
+                });
+            } else {
+                // Fallback: thông báo trực tiếp
+                new Notification(title, {
+                    body: body,
+                    icon: 'icon-192.png',
+                    vibrate: [200, 100, 200]
+                });
+            }
+        } catch(e) {
+            console.log("Lỗi gửi thông báo:", e);
+            try {
+                new Notification(title, { body: body });
+            } catch(e2) {
+                console.log("Không thể gửi thông báo:", e2);
+            }
+        }
+    } else {
+        // Nếu chưa được cấp quyền, yêu cầu lại
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                triggerPushNotification(title, body);
+            }
+        });
+    }
+} // end function triggerPushNotification
+
+// end THÔNG BÁO ĐẨY
+
+// =========================================================================
+// THÔNG TIN ỨNG DỤNG - TỰ ĐỘNG CẬP NHẬT
+// =========================================================================
+
+// Hàm lấy thông tin từ manifest.json
+async function loadAppInfoFromManifest() {
+    try {
+        const response = await fetch('/manifest.json');
+        const manifest = await response.json();
+        return {
+            version: manifest.version || '1.0.0',
+            name: manifest.name || 'TÔI - Quản lý tài chính',
+            shortName: manifest.short_name || 'TÔI'
+        };
+    } catch (error) {
+        console.log('Không thể tải manifest.json, dùng thông tin mặc định:', error);
+        return {
+            version: '1.0.0',
+            name: 'TÔI - Quản lý tài chính',
+            shortName: 'TÔI'
+        };
+    }
+} // end function loadAppInfoFromManifest
+
+// Hàm lấy thời gian build từ file script.js
+function getBuildTime() {
+    const scripts = document.getElementsByTagName('script');
+    let buildTime = new Date();
+    
+    for (let script of scripts) {
+        if (script.src && script.src.includes('script.js')) {
+            const urlParams = new URLSearchParams(script.src.split('?')[1] || '');
+            const timestamp = urlParams.get('v');
+            if (timestamp) {
+                buildTime = new Date(parseInt(timestamp));
+            } else {
+                buildTime = new Date();
+            }
+            break;
+        }
+    }
+    
+    return buildTime;
+} // end function getBuildTime
+
+// Hàm định dạng thời gian
+function formatBuildTime(date) {
+    if (!date || isNaN(date.getTime())) {
+        return '--/--/---- --:--:--';
+    }
+    return date.toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+} // end function formatBuildTime
+
+// Khởi tạo APP_CONFIG
+let APP_CONFIG = {
+    version: '1.0.0',
+    name: 'TÔI - Quản lý tài chính',
+    shortName: 'TÔI',
+    buildDate: formatBuildTime(new Date())
+};
+
+// Hàm khởi tạo và cập nhật thông tin app
+async function initAppConfig() {
+    const manifestInfo = await loadAppInfoFromManifest();
+    APP_CONFIG.version = manifestInfo.version;
+    APP_CONFIG.name = manifestInfo.name;
+    APP_CONFIG.shortName = manifestInfo.shortName;
+    
+    const buildTime = getBuildTime();
+    APP_CONFIG.buildDate = formatBuildTime(buildTime);
+    
+    updateAppInfo();
+    console.log('✅ App config initialized:', APP_CONFIG);
+} // end function initAppConfig
+
+// Hàm mở modal thông tin ứng dụng
+function openAppInfoModal() {
+    const modal = document.getElementById('appInfoModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        updateAppInfo();
+    }
+} // end function openAppInfoModal
+
+// Hàm đóng modal thông tin ứng dụng
+function closeAppInfoModal() {
+    const modal = document.getElementById('appInfoModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+} // end function closeAppInfoModal
+
+// Hàm cập nhật thông tin ứng dụng
+function updateAppInfo() {
+    const versionEl = document.getElementById('app-version');
+    const buildDateEl = document.getElementById('app-build-date');
+    const lastSyncEl = document.getElementById('app-last-sync');
+    const totalTxEl = document.getElementById('app-total-transactions');
+    const totalRemEl = document.getElementById('app-total-reminders');
+    const totalFamilyEl = document.getElementById('app-total-family');
+    const versionMiniEl = document.getElementById('app-version-mini');
+    
+    if (versionEl) versionEl.textContent = APP_CONFIG.version;
+    if (versionMiniEl) versionMiniEl.textContent = APP_CONFIG.version;
+    if (buildDateEl) buildDateEl.textContent = APP_CONFIG.buildDate;
+    
+    if (lastSyncEl) {
+        const lastSyncTime = localStorage.getItem('lastSyncTime');
+        if (lastSyncTime) {
+            lastSyncEl.textContent = lastSyncTime;
+        } else {
+            lastSyncEl.textContent = 'Chưa đồng bộ';
+        }
+    }
+    
+    if (db && totalTxEl) {
+        const tx = db.transaction('transactions', 'readonly');
+        const store = tx.objectStore('transactions');
+        const countRequest = store.count();
+        countRequest.onsuccess = function(e) {
+            totalTxEl.textContent = e.target.result || 0;
+        };
+        countRequest.onerror = function() {
+            totalTxEl.textContent = '0';
+        };
+    }
+    
+    if (db && totalRemEl) {
+        const tx = db.transaction('reminders', 'readonly');
+        const store = tx.objectStore('reminders');
+        const countRequest = store.count();
+        countRequest.onsuccess = function(e) {
+            totalRemEl.textContent = e.target.result || 0;
+        };
+        countRequest.onerror = function() {
+            totalRemEl.textContent = '0';
+        };
+    }
+    
+    if (totalFamilyEl) {
+        totalFamilyEl.textContent = localFamilyData ? localFamilyData.length : 0;
+    }
+} // end function updateAppInfo
+
+// Hàm cập nhật thời gian sync cuối cùng
+function updateLastSyncTime() {
+    const now = new Date();
+    const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    localStorage.setItem('lastSyncTime', timeString);
+    
+    const lastSyncEl = document.getElementById('app-last-sync');
+    if (lastSyncEl) {
+        lastSyncEl.textContent = timeString;
+    }
+} // end function updateLastSyncTime
+
+// end THÔNG TIN ỨNG DỤNG
+
+// =========================================================================
 // HÀM CHUYỂN ĐỔI SENTENCE CASE
 // =========================================================================
+
 /**
  * Chuyển đổi chuỗi sang sentence case:
  * - Chữ cái đầu tiên của chuỗi được viết hoa
  * - Các chữ cái khác giữ nguyên (không thay đổi)
  * - Nếu chuỗi rỗng hoặc null thì trả về chuỗi rỗng
- * 
- * Ví dụ:
- * - "đóng tiền nước" -> "Đóng tiền nước"
- * - "KHÁM ĐỊNH KỲ" -> "KHÁM ĐỊNH KỲ" (giữ nguyên vì đã viết hoa)
- * - "mua sắm TẾT" -> "Mua sắm TẾT"
  */
 function toSentenceCase(str) {
     if (!str || typeof str !== 'string') return str || '';
@@ -132,6 +377,74 @@ function setupEventListeners() {
     document.getElementById("btn-reset-app").addEventListener("click", resetAppCompletely);
 
     document.getElementById("scrollTopBtn").addEventListener("click", scrollToTop);
+
+    // ============================================================
+    // SỰ KIỆN ĐÓNG MODAL FAMILY
+    // ============================================================
+    const btnCloseFamilyModal = document.getElementById("btn-close-modal-family");
+    if (btnCloseFamilyModal) {
+        btnCloseFamilyModal.addEventListener("click", closeModal);
+    }
+
+    const familyModal = document.getElementById("familyModal");
+    if (familyModal) {
+        familyModal.addEventListener("click", function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    }
+
+    // ============================================================
+    // SỰ KIỆN CHO MODAL THÔNG TIN ỨNG DỤNG
+    // ============================================================
+    const btnAppInfo = document.getElementById("btn-app-info");
+    if (btnAppInfo) {
+        btnAppInfo.addEventListener("click", openAppInfoModal);
+    }
+
+    const btnCloseAppInfo = document.getElementById("btn-close-app-info");
+    if (btnCloseAppInfo) {
+        btnCloseAppInfo.addEventListener("click", closeAppInfoModal);
+    }
+
+    const appInfoModal = document.getElementById("appInfoModal");
+    if (appInfoModal) {
+        appInfoModal.addEventListener("click", function(e) {
+            if (e.target === this) {
+                closeAppInfoModal();
+            }
+        });
+    }
+
+    const btnRefreshAppInfo = document.getElementById("btn-refresh-app-info");
+    if (btnRefreshAppInfo) {
+        btnRefreshAppInfo.addEventListener("click", function() {
+            updateAppInfo();
+            this.textContent = "✅ Đã làm mới!";
+            setTimeout(() => {
+                this.textContent = "🔄 Làm mới";
+            }, 1500);
+        });
+    }
+
+    // ============================================================
+    // ĐÓNG MODAL BẰNG PHÍM ESC (CHO CẢ 2 MODAL)
+    // ============================================================
+    document.addEventListener("keydown", function(e) {
+        if (e.key === "Escape") {
+            // Đóng modal Family nếu đang mở
+            const familyModal = document.getElementById("familyModal");
+            if (familyModal && familyModal.style.display === "flex") {
+                closeModal();
+            }
+            // Đóng modal App Info nếu đang mở
+            const appInfoModal = document.getElementById("appInfoModal");
+            if (appInfoModal && appInfoModal.style.display === "flex") {
+                closeAppInfoModal();
+            }
+        }
+    });
 } // end function setupEventListeners
 // end KHỞI TẠO DOM EVENTS
 
@@ -245,11 +558,9 @@ function saveTransaction(event, mode) {
     const dateVal = document.getElementById(`${mode}-date`).value;
     const note = document.getElementById(`${mode}-note`).value;
 
-    // Quy ước: tab Chi lưu số âm, tab Thu lưu số dương
     if (mode === 'chi') amount = -Math.abs(amount);
     if (mode === 'thu') amount = Math.abs(amount);
 
-    // Chuyển đổi GHI CHÚ sang sentence case (viết hoa chữ cái đầu tiên)
     const formattedNote = toSentenceCase(note);
 
     const transaction = {
@@ -257,7 +568,7 @@ function saveTransaction(event, mode) {
         type: type,
         subtype: subtype,
         amount: amount,
-        note: formattedNote, // Ghi chú đã được format sentence case
+        note: formattedNote,
         synced: 0
     };
 
@@ -310,7 +621,7 @@ function syncToGoogleSheets() {
                     type: t.type,
                     subtype: t.subtype,
                     amount: t.amount,
-                    note: t.note // Ghi chú đã được format sentence case
+                    note: t.note
                 }))
             })
         })
@@ -711,16 +1022,24 @@ function renderFamilyGrid(members) {
 
     container.innerHTML = "";
 
+    let validMembers = 0;
     members.forEach(m => {
         const displayName = m.nickname && m.nickname !== "-" ? m.nickname : (m.fullname || "Thành viên");
         if (displayName.toUpperCase() === "NICKNAME") return;
 
+        validMembers++;
         let btn = document.createElement("button");
         btn.className = "member-btn";
         btn.textContent = displayName;
         btn.onclick = () => showFamilyModal(m);
         container.appendChild(btn);
     });
+
+    // Cập nhật số lượng thành viên trong thông tin app
+    const totalFamilyEl = document.getElementById('app-total-family');
+    if (totalFamilyEl) {
+        totalFamilyEl.textContent = validMembers;
+    }
 } // end function renderFamilyGrid
 
 function showFamilyModal(m) {
@@ -818,11 +1137,17 @@ function showFamilyModal(m) {
         });
     };
 
-    document.getElementById("familyModal").style.display = "flex";
+    const modal = document.getElementById("familyModal");
+    if (modal) {
+        modal.style.display = "flex";
+    }
 } // end function showFamilyModal
 
 function closeModal() {
-    document.getElementById("familyModal").style.display = "none";
+    const modal = document.getElementById("familyModal");
+    if (modal) {
+        modal.style.display = "none";
+    }
 } // end function closeModal
 // end FAMILY - BẢO MẬT & HIỂN THỊ
 
@@ -921,22 +1246,6 @@ function toggleCustomReminderFields() {
     }
 } // end function toggleCustomReminderFields
 
-function requestNotificationPermission() {
-    if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-    }
-} // end function requestNotificationPermission
-
-function triggerPushNotification(title, body) {
-    if ("Notification" in window && Notification.permission === "granted") {
-        try {
-            new Notification(title, { body: body, icon: "favicon.ico" });
-        } catch(e) {
-            console.log("Notification error:", e);
-        }
-    }
-} // end function triggerPushNotification
-
 function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) {
     const d = new Date(fromDateStr);
     d.setHours(0, 0, 0, 0);
@@ -983,13 +1292,12 @@ function saveReminder(event) {
         return;
     }
 
-    // Chuyển đổi NỘI DUNG NHẮC sang sentence case (viết hoa chữ cái đầu tiên)
     const formattedContent = toSentenceCase(content);
 
     const startDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 
     const reminderItem = {
-        content: formattedContent, // Nội dung đã được format sentence case
+        content: formattedContent,
         startDate: startDateStr,
         frequency: frequency,
         everyValue: frequency === "CUSTOM" ? parseInt(everyVal) : null,
@@ -1230,7 +1538,7 @@ function syncRemindersToSheet() {
         if (unsynced.length === 0) return;
 
         const dataToSend = unsynced.map(r => ({
-            content: r.content || "", // Nội dung đã được format sentence case
+            content: r.content || "",
             frequency: encodeFrequencyForSheet(r),
             startDate: r.startDate || "",
             status: r.status || "ENABLED",
@@ -1379,7 +1687,7 @@ function syncAllDataFromSheet() {
                         type: t.type,
                         subtype: t.subtype,
                         amount: t.amount,
-                        note: t.note // Ghi chú đã được format sentence case
+                        note: t.note
                     }))
                 })
             })
@@ -1415,7 +1723,7 @@ function syncAllDataFromSheet() {
                     body: JSON.stringify({
                         action: 'syncReminders',
                         data: unsyncedRem.map(r => ({
-                            content: r.content || "", // Nội dung đã được format sentence case
+                            content: r.content || "",
                             frequency: encodeFrequencyForSheet(r),
                             startDate: r.startDate || "",
                             status: r.status || "ENABLED",
@@ -1504,6 +1812,8 @@ function syncAllDataFromSheet() {
                             };
                         }
 
+                        updateLastSyncTime();
+
                         const now = new Date();
                         const timeString = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                         const statusEl = document.getElementById("sync-status");
@@ -1530,6 +1840,7 @@ function syncAllDataFromSheet() {
                     initFormOptions();
                     renderChartsAndStats();
                     generateRemindersInterface();
+                    updateAppInfo();
                 });
         };
 
@@ -1639,6 +1950,10 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+
+        initAppConfig().then(() => {
+            updateAppInfo();
+        });
     };
 
     request.onerror = function(e) {
@@ -1647,6 +1962,10 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+
+        initAppConfig().then(() => {
+            updateAppInfo();
+        });
     };
 } // end function loadInitialSettings
 // end LOAD INITIAL SETTINGS

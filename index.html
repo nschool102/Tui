@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi" data-theme="dark" class="theme-yellow">
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -8,6 +8,10 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- Meta tags cho iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
     <!-- HEADER -->
@@ -199,7 +203,7 @@
                 <div id="custom-reminder-fields" style="display: none; border-left: 3px solid var(--theme-color); padding-left: 12px; margin-bottom: 15px;">
                     <div class="form-group">
                         <label>Lặp lại mỗi (EVERY)</label>
-                        <input type="number" inputmode="numeric" id="rem-every-val" class="form-control" min="1" value="1" placeholder="Nhập số lượng...">
+                        <input type="number" id="rem-every-val" class="form-control" min="1" value="1" placeholder="Nhập số lượng...">
                     </div>
                     <div class="form-group">
                         <label>Đơn vị thời gian</label>
@@ -245,19 +249,74 @@
             
             <button class="btn" id="btn-reset-app" style="background-color: #F44336 !important; color: #fff !important; width: 100%; margin-top: 15px;">🗑️ Xóa sạch dữ liệu & Đặt lại App</button>
         </div>
+
+        <!-- NÚT MỞ MODAL THÔNG TIN ỨNG DỤNG -->
+        <div class="card" style="text-align: center; cursor: pointer;" id="btn-app-info">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <span style="font-size: 20px;">ℹ️</span>
+                <span style="font-weight: 500; color: var(--theme-color);">Thông tin ứng dụng</span>
+                <span style="font-size: 12px; color: var(--stat-label-color);">(nhấn để xem)</span>
+            </div>
+            <div style="font-size: 11px; color: var(--stat-label-color); margin-top: 4px; opacity: 0.7;">
+                Phiên bản <span id="app-version-mini">1.0.0</span>
+            </div>
+        </div>
+        <!-- end NÚT MỞ MODAL THÔNG TIN ỨNG DỤNG -->
     </div>
     <!-- end TAB SETTINGS -->
 
     <!-- FAMILY MODAL -->
     <div id="familyModal" class="modal">
         <div class="modal-content">
-            <button class="modal-close" id="btn-close-modal">&times;</button>
+            <button class="modal-close" id="btn-close-modal-family">&times;</button>
             <h3 id="modal-member-title" style="margin-top: 0; margin-bottom: 15px; color: var(--theme-color);">Thông tin lý lịch</h3>
             <div id="modal-member-details" style="margin-bottom: 20px;"></div>
             <button id="btn-copy-all" class="btn">📋 Sao chép toàn bộ thông tin</button>
         </div>
     </div>
     <!-- end FAMILY MODAL -->
+
+    <!-- MODAL THÔNG TIN ỨNG DỤNG -->
+    <div id="appInfoModal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <button class="modal-close" id="btn-close-app-info">&times;</button>
+            <h3 style="margin-top: 0; margin-bottom: 20px; color: var(--theme-color); display: flex; align-items: center; gap: 10px;">
+                <span>ℹ️</span> Thông tin ứng dụng
+            </h3>
+            <div class="app-info-modal">
+                <div class="info-row-app">
+                    <span class="info-label-app">📱 Ứng dụng:</span>
+                    <span class="info-value-app" style="font-weight: 600; color: var(--theme-color);">TÔI - Quản lý tài chính</span>
+                </div>
+                <div class="info-row-app">
+                    <span class="info-label-app">🔨 Phiên bản:</span>
+                    <span class="info-value-app" id="app-version">1.0.0</span>
+                </div>
+                <div class="info-row-app">
+                    <span class="info-label-app">📅 Last build:</span>
+                    <span class="info-value-app" id="app-build-date">--/--/---- --:--:--</span>
+                </div>
+                <div class="info-row-app">
+                    <span class="info-label-app">🔄 Last sync:</span>
+                    <span class="info-value-app" id="app-last-sync">Chưa đồng bộ</span>
+                </div>
+                <div class="info-row-app">
+                    <span class="info-label-app">📊 Tổng giao dịch:</span>
+                    <span class="info-value-app" id="app-total-transactions">0</span>
+                </div>
+                <div class="info-row-app">
+                    <span class="info-label-app">⏰ Tổng nhắc hẹn:</span>
+                    <span class="info-value-app" id="app-total-reminders">0</span>
+                </div>
+                <div class="info-row-app" style="border-bottom: none; padding-bottom: 0;">
+                    <span class="info-label-app">👨‍👩‍👧‍👦 Thành viên:</span>
+                    <span class="info-value-app" id="app-total-family">0</span>
+                </div>
+            </div>
+            <button class="btn" id="btn-refresh-app-info" style="margin-top: 15px;">🔄 Làm mới</button>
+        </div>
+    </div>
+    <!-- end MODAL THÔNG TIN ỨNG DỤNG -->
 
     <!-- NAVIGATION TABS -->
     <div class="nav-tabs" id="main-nav-tabs">
@@ -271,6 +330,21 @@
     <!-- end NAVIGATION TABS -->
 
     <button class="scroll-top" id="scrollTopBtn">↑</button>
+
+    <!-- ĐĂNG KÝ SERVICE WORKER -->
+    <script>
+        // Đăng ký Service Worker để hỗ trợ thông báo đẩy và PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => {
+                    console.log('Service Worker đăng ký thành công:', reg);
+                })
+                .catch(err => {
+                    console.log('Lỗi đăng ký Service Worker:', err);
+                });
+        }
+    </script>
+    <!-- end ĐĂNG KÝ SERVICE WORKER -->
 
     <script src="script.js"></script>
 </body>

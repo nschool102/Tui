@@ -1,6 +1,7 @@
 {
   "name": "GIA ĐÌNH TUI",
   "short_name": "TUI",
+  "version": "1.0.0",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
