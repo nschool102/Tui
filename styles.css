@@ -5,14 +5,14 @@
     --theme-color: #FFC107;
     --text-on-theme: #111111;
     
-    --primary-bg: #ffffff;
+    --primary-bg: #f2f4f7;
     --secondary-bg: #f5f5f5;
-    --text-color: #333333;
-    --border-color: #dddddd;
+    --text-color: #1f2937;
+    --border-color: #e4e7ec;
     --accent-color: #ff9800;
     --danger-color: #f44336;
     --success-color: #4CAF50;
-    --card-bg: #ffffff;
+    --card-bg: #f7f8fa;
     --modal-bg: rgba(0,0,0,0.5);
     
     --header-bg: var(--theme-color);
@@ -41,8 +41,8 @@
     --card-bg: #1e1e1e;
     --modal-bg: rgba(0,0,0,0.8);
     
-    --header-bg: #1a1a1a;
-    --header-text: #ffffff;
+    --header-bg: var(--theme-color);
+    --header-text: var(--text-on-theme);
     --nav-bg: #1e1e1e;
     --nav-border: #333333;
     --tab-color: #999999;
@@ -68,8 +68,8 @@
 [data-theme="dark"].theme-yellow {
     --theme-color: #FFC107;
     --text-on-theme: #111111;
-    --header-bg: #1a1a1a;
-    --header-text: #ffffff;
+    --header-bg: #FFC107;
+    --header-text: #111111;
 }
 
 /* ==========================================================================
@@ -290,14 +290,8 @@ input[type="datetime-local"].form-control {
 }
 
 @keyframes modalFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .modal-content {
@@ -316,11 +310,11 @@ input[type="datetime-local"].form-control {
 @keyframes modalSlideIn {
     from {
         opacity: 0;
-        transform: translateY(-30px);
+        transform: translateY(-30px) scale(0.95);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
@@ -333,7 +327,7 @@ input[type="datetime-local"].form-control {
     color: var(--text-color);
     background: none;
     border: none;
-    transition: transform 0.2s ease;
+    transition: transform 0.3s ease;
     padding: 5px 10px;
     border-radius: 4px;
 }
@@ -532,6 +526,7 @@ input:checked + .slider:before {
 
 .theme-text { color: var(--theme-color) !important; }
 .theme-bg { background-color: var(--theme-color) !important; color: var(--text-on-theme) !important; }
+
 /* ==========================================================================
    17. APP INFO MODAL
    ========================================================================== */
@@ -629,43 +624,4 @@ input:checked + .slider:before {
     .history-table td {
         padding: 6px 4px;
     }
-}
-
-/* ==========================================================================
-   19. MODAL ANIMATION
-   ========================================================================== */
-.modal {
-    animation: modalFadeIn 0.3s ease;
-}
-
-@keyframes modalFadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-.modal-content {
-    animation: modalSlideIn 0.3s ease;
-}
-
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-30px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.modal-close {
-    transition: transform 0.3s ease;
-}
-
-.modal-close:hover {
-    transform: rotate(90deg);
 }
