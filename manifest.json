@@ -1,11 +1,11 @@
 {
-  "name": "GIA ĐÌNH TUI",
-  "short_name": "TUI",
+  "name": "TÔI - Quản lý tài chính",
+  "short_name": "TÔI",
   "version": "1.0.0",
   "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#4CAF50",
+  "background_color": "#121212",
+  "theme_color": "#FFC107",
   "icons": [
     {
       "src": "icon.png",
