@@ -2,7 +2,6 @@
 // SERVICE WORKER CHO PWA
 // =========================================================================
 
-// Tên cache và danh sách assets cần cache
 const CACHE_NAME = 'toi-app-v1';
 const ASSETS = [
     '/',
@@ -13,11 +12,7 @@ const ASSETS = [
     '/icon.png'
 ];
 
-// =========================================================================
-// CÀI ĐẶT SERVICE WORKER
-// =========================================================================
-
-// Sự kiện cài đặt - cache các assets
+// Cài đặt Service Worker
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -27,11 +22,10 @@ self.addEventListener('install', event => {
             })
             .catch(err => console.log('Lỗi cache:', err))
     );
-    // Kích hoạt ngay lập tức
     self.skipWaiting();
 }); // end event install
 
-// Sự kiện kích hoạt - xóa cache cũ
+// Kích hoạt Service Worker
 self.addEventListener('activate', event => {
     event.waitUntil(
         caches.keys().then(keys => {
@@ -41,11 +35,10 @@ self.addEventListener('activate', event => {
             );
         })
     );
-    // Kiểm soát các tab đang mở
     self.clients.claim();
 }); // end event activate
 
-// Sự kiện fetch - phục vụ từ cache
+// Xử lý fetch
 self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
@@ -55,49 +48,37 @@ self.addEventListener('fetch', event => {
     );
 }); // end event fetch
 
-// end CÀI ĐẶT SERVICE WORKER
-
-// =========================================================================
-// XỬ LÝ THÔNG BÁO ĐẨY
-// =========================================================================
-
-// Nhận thông báo push từ server (dành cho Firebase Cloud Messaging)
+// Xử lý thông báo đẩy
 self.addEventListener('push', event => {
     const data = event.data ? event.data.json() : {};
     const title = data.title || 'TÔI - Nhắc hẹn';
     const options = {
         body: data.body || 'Bạn có lịch hẹn sắp tới!',
-        icon: '/icon-192.png',
-        badge: '/icon-192.png',
-        vibrate: [200, 100, 200],
-        data: data.data || {}
+        icon: '/icon.png',
+        badge: '/icon.png',
+        vibrate: [200, 100, 200]
     };
-    
     event.waitUntil(
         self.registration.showNotification(title, options)
     );
 }); // end event push
 
-// Xử lý khi người dùng click vào thông báo
+// Xử lý click vào thông báo
 self.addEventListener('notificationclick', event => {
     event.notification.close();
-    
-    // Mở ứng dụng khi click vào thông báo
     event.waitUntil(
         clients.openWindow('/')
     );
 }); // end event notificationclick
 
-// Nhận message từ main thread để hiển thị thông báo
+// Nhận message từ main thread
 self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
         const { title, body, icon } = event.data;
         self.registration.showNotification(title, {
             body: body,
-            icon: icon || '/icon-192.png',
+            icon: icon || '/icon.png',
             vibrate: [200, 100, 200]
         });
     }
 }); // end event message
-
-// end XỬ LÝ THÔNG BÁO ĐẨY
