@@ -279,6 +279,42 @@ function updateLastSyncTime() {
 // end THÔNG TIN ỨNG DỤNG
 
 // =========================================================================
+// CẬP NHẬT TỔNG THU/CHI TRONG THÁNG - TAB THU/CHI
+// =========================================================================
+function updateSummaryTotals() {
+    getAllTransactions(data => {
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        
+        let totalThu = 0;
+        let totalChi = 0;
+        
+        data.forEach(t => {
+            const tDate = new Date(t.timestamp);
+            if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+                if (t.amount > 0) {
+                    totalThu += t.amount;
+                } else {
+                    totalChi += Math.abs(t.amount);
+                }
+            }
+        });
+        
+        const thuEl = document.getElementById('total-thu-month');
+        if (thuEl) {
+            thuEl.textContent = formatVND(totalThu);
+        }
+        
+        const chiEl = document.getElementById('total-chi-month');
+        if (chiEl) {
+            chiEl.textContent = formatVND(totalChi);
+        }
+    });
+} // end function updateSummaryTotals
+// end CẬP NHẬT TỔNG THU/CHI TRONG THÁNG
+
+// =========================================================================
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
 function initDB() {
@@ -832,6 +868,9 @@ function renderChartsAndStats() {
         renderSection4(data);
         renderPieChart('chart-chi-overview', ['Tổng Thu', 'Tổng Chi'], [totalThu, totalChi]);
         renderTopExpenses();
+        
+        // Cập nhật tổng thu/chi trong tháng
+        updateSummaryTotals();
     });
 } // end function renderChartsAndStats
 
@@ -1803,6 +1842,7 @@ function syncAllDataFromSheet() {
                     renderChartsAndStats();
                     generateRemindersInterface();
                     updateAppInfo();
+                    updateSummaryTotals();
                 });
         };
 
@@ -1912,6 +1952,7 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+        updateSummaryTotals();
 
         initAppConfig().then(() => {
             updateAppInfo();
@@ -1924,6 +1965,7 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+        updateSummaryTotals();
         initAppConfig().then(() => {
             updateAppInfo();
         });
