@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" data-theme="dark" class="theme-yellow">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -8,9 +8,6 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon-192.png">
 </head>
 <body>
     <!-- HEADER -->
@@ -202,7 +199,7 @@
                 <div id="custom-reminder-fields" style="display: none; border-left: 3px solid var(--theme-color); padding-left: 12px; margin-bottom: 15px;">
                     <div class="form-group">
                         <label>Lặp lại mỗi (EVERY)</label>
-                        <input type="number" id="rem-every-val" class="form-control" min="1" value="1" placeholder="Nhập số lượng...">
+                        <input type="number" inputmode="numeric" id="rem-every-val" class="form-control" min="1" value="1" placeholder="Nhập số lượng...">
                     </div>
                     <div class="form-group">
                         <label>Đơn vị thời gian</label>
@@ -329,21 +326,6 @@
     <!-- end NAVIGATION TABS -->
 
     <button class="scroll-top" id="scrollTopBtn">↑</button>
-
-    <!-- ĐĂNG KÝ SERVICE WORKER -->
-    <script>
-        // Đăng ký Service Worker để hỗ trợ thông báo đẩy và PWA
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => {
-                    console.log('Service Worker đăng ký thành công:', reg);
-                })
-                .catch(err => {
-                    console.log('Lỗi đăng ký Service Worker:', err);
-                });
-        }
-    </script>
-    <!-- end ĐĂNG KÝ SERVICE WORKER -->
 
     <script src="script.js"></script>
 </body>
