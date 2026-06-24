@@ -18,11 +18,11 @@ const CATEGORIES = {
     },
     chi: {
     "Ăn uống": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, Siêu thị", "Ăn vặt, Đồ ngọt"],
-    "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng xe", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
+    "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
     "Mua sắm & Cá nhân": ["Quần áo", "Phụ kiện", "Mĩ phẩm", "Đồ gia dụng", "Đồ chơi", "Sách, Văn phòng phẩm", "Tiền tiêu vặt"],
     "Y tế & Sức khỏe": ["Khám, chữa bệnh", "Thuốc", "Thực phẩm chức năng"],
     "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
-    "Giải trí": ["Coi phim", "Du lịch", "Quán cafe", "Nhà hàng"],
+    "Giải trí": ["Coi phim", "Du lịch", "Quán cafe"],
     "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
     "Chi khác & Giao tế": ["Từ thiện", "Biếu tặng"]
     }
