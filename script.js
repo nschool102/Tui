@@ -17,13 +17,14 @@ const CATEGORIES = {
         "CON CỢP": ["Lương tháng", "Bổ sung lương", "Bổ sung thưởng"]
     },
     chi: {
-        "Chi khác": ["Từ thiện", "Biếu tặng", "Dịch vụ công"],
-        "Chi tiêu thiết yếu": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, siêu thị", "Điện", "Nước", "Internet", "Xăng", "Tiền tiêu vặt", "Điện thoại", "Transportation"],
-        "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
-        "Giải trí": ["Cafe", "Coi phim", "Du lịch", "Nhà hàng"],
-        "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
-        "Mua sắm": ["Đồ ăn, thức uống", "Đồ chơi", "Đồ gia dụng", "Mĩ phẩm", "Phụ kiện", "Quần áo", "Sách, Văn phòng phẩm", "Thực phẩm chức năng"],
-        "Y tế": ["Khám, chữa bệnh", "Thuốc"]
+    "Ăn uống": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, Siêu thị", "Ăn vặt, Đồ ngọt"],
+    "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng xe", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
+    "Mua sắm & Cá nhân": ["Quần áo", "Phụ kiện", "Mĩ phẩm", "Đồ gia dụng", "Đồ chơi", "Sách, Văn phòng phẩm", "Tiền tiêu vặt"],
+    "Y tế & Sức khỏe": ["Khám, chữa bệnh", "Thuốc", "Thực phẩm chức năng"],
+    "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
+    "Giải trí": ["Coi phim", "Du lịch", "Quán cafe", "Nhà hàng"],
+    "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
+    "Chi khác & Giao tế": ["Từ thiện", "Biếu tặng"]
     }
 };
 
