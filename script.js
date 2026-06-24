@@ -18,7 +18,7 @@ const CATEGORIES = {
     },
     chi: {
         "Chi khác": ["Từ thiện", "Biếu tặng", "Dịch vụ công"],
-        "Chi tiêu thiết yếu": ["Đi chợ, siêu thị", "Điện", "Nước", "Internet", "Xăng", "Tiền tiêu vặt", "Điện thoại", "Transportation"],
+        "Chi tiêu thiết yếu": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, siêu thị", "Điện", "Nước", "Internet", "Xăng", "Tiền tiêu vặt", "Điện thoại", "Transportation"],
         "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
         "Giải trí": ["Cafe", "Coi phim", "Du lịch", "Nhà hàng"],
         "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
