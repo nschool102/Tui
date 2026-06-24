@@ -1911,6 +1911,290 @@ function resetAppCompletely() {
 // end RESET APP
 
 // =========================================================================
+// THÔNG BÁO ĐẨY (PUSH NOTIFICATION) - HỖ TRỢ IOS
+// =========================================================================
+
+// Kiểm tra và yêu cầu quyền thông báo
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("Trình duyệt không hỗ trợ Notification");
+        // iOS fallback - sử dụng alert
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            console.log("iOS detected - using fallback notification");
+        }
+        return;
+    }
+    
+    // Kiểm tra nếu đã từng hỏi trước đó
+    const hasAsked = localStorage.getItem('notification_asked');
+    
+    if (Notification.permission === "default") {
+        // Nếu chưa hỏi hoặc đã hỏi nhưng người dùng chưa trả lời
+        if (!hasAsked) {
+            // Đợi user tương tác với trang rồi mới hỏi (iOS yêu cầu)
+            document.addEventListener('click', function askOnce() {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        console.log("Đã được cấp quyền thông báo");
+                        registerServiceWorker();
+                        // Gửi thông báo test
+                        setTimeout(() => {
+                            triggerPushNotification("✅ Thông báo đã sẵn sàng", 
+                                "Bạn sẽ nhận được thông báo nhắc hẹn từ ứng dụng");
+                        }, 1000);
+                    } else {
+                        console.log("Từ chối quyền thông báo");
+                    }
+                });
+                localStorage.setItem('notification_asked', 'true');
+                document.removeEventListener('click', askOnce);
+            });
+        }
+    } else if (Notification.permission === "granted") {
+        registerServiceWorker();
+    }
+} // end function requestNotificationPermission
+
+// Đăng ký Service Worker với retry cho iOS
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        // Thử đăng ký, nếu thất bại thử lại sau 2 giây
+        const tryRegister = () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => {
+                    console.log('Service Worker đăng ký thành công:', reg);
+                    // Theo dõi service worker
+                    if (reg.active) {
+                        console.log('Service Worker đã active');
+                    }
+                })
+                .catch(err => {
+                    console.log('Lỗi đăng ký Service Worker:', err);
+                    // Thử lại sau 2 giây
+                    setTimeout(tryRegister, 2000);
+                });
+        };
+        tryRegister();
+    }
+} // end function registerServiceWorker
+
+// Gửi thông báo đẩy - Tối ưu cho iOS
+function triggerPushNotification(title, body) {
+    if (!("Notification" in window)) {
+        console.log("Trình duyệt không hỗ trợ Notification");
+        // iOS fallback: hiển thị alert
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            // Chỉ hiển thị alert khi app đang mở
+            if (document.hidden === false) {
+                // Sử dụng alert hoặc custom toast
+                showToastNotification(title, body);
+            }
+        }
+        return;
+    }
+    
+    // Kiểm tra quyền
+    if (Notification.permission === "granted") {
+        try {
+            // Kiểm tra xem service worker có controller không
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                // Gửi qua service worker
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'SHOW_NOTIFICATION',
+                    title: title,
+                    body: body,
+                    icon: 'icon.png'
+                });
+            } else {
+                // Fallback: hiển thị trực tiếp
+                const notification = new Notification(title, {
+                    body: body,
+                    icon: 'icon.png',
+                    vibrate: [200, 100, 200],
+                    requireInteraction: true,
+                    silent: false
+                });
+                
+                // Tự động đóng sau 30 giây
+                setTimeout(() => {
+                    notification.close();
+                }, 30000);
+            }
+        } catch(e) {
+            console.log("Lỗi gửi thông báo:", e);
+            // Fallback cho iOS
+            if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+                showToastNotification(title, body);
+            }
+        }
+    } else if (Notification.permission === "default") {
+        // Chưa được cấp quyền, yêu cầu
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                triggerPushNotification(title, body);
+            }
+        });
+    } else {
+        // Bị từ chối - sử dụng fallback
+        console.log("Notification bị từ chối");
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            showToastNotification(title, body);
+        }
+    }
+} // end function triggerPushNotification
+
+// Hiển thị thông báo dạng toast (fallback cho iOS)
+function showToastNotification(title, body) {
+    // Kiểm tra xem đã có toast container chưa
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            width: 90%;
+            max-width: 400px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 2px solid var(--theme-color);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            display: none;
+            animation: slideDown 0.3s ease;
+        `;
+        document.body.appendChild(container);
+        
+        // Thêm style animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+            }
+            @keyframes slideUp {
+                from {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    // Cập nhật nội dung
+    container.innerHTML = `
+        <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="font-size: 24px;">🔔</div>
+            <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 1rem; color: var(--theme-color);">${title}</div>
+                <div style="font-size: 0.9rem; margin-top: 4px; opacity: 0.9;">${body}</div>
+            </div>
+            <button onclick="this.parentElement.parentElement.style.display='none'" 
+                    style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">
+                ✕
+            </button>
+        </div>
+    `;
+    
+    // Hiển thị
+    container.style.display = 'block';
+    
+    // Tự động ẩn sau 8 giây
+    setTimeout(() => {
+        if (container) {
+            container.style.animation = 'slideUp 0.3s ease forwards';
+            setTimeout(() => {
+                container.style.display = 'none';
+                container.style.animation = '';
+            }, 300);
+        }
+    }, 8000);
+    
+    // Rung nhẹ trên iOS (nếu hỗ trợ)
+    if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+    }
+} // end function showToastNotification
+
+// Hàm kiểm tra và gửi thông báo - cải thiện cho iOS
+function checkAndTriggerReminders(reminders) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayStr = formatDateOnly(today);
+    const tomorrowStr = formatDateOnly(tomorrow);
+
+    let hasChanges = false;
+
+    reminders.forEach(r => {
+        if (r.status === "DISABLED") return;
+
+        const targetDateStr = r.nextReminderDate || r.startDate;
+        if (!targetDateStr) return;
+
+        const targetDate = new Date(targetDateStr);
+        targetDate.setHours(0, 0, 0, 0);
+
+        // Kiểm tra nếu là nhắc một lần và đã qua ngày
+        if (r.frequency === "ONCE" && targetDate < today) return;
+
+        const alreadyTriggeredToday = r.lastTriggeredAt && r.lastTriggeredAt.slice(0, 10) === todayStr;
+
+        // Kiểm tra nhắc trước 1 ngày
+        if (targetDateStr === tomorrowStr) {
+            triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
+        }
+
+        // Kiểm tra nhắc đúng ngày
+        if (targetDateStr === todayStr && !alreadyTriggeredToday) {
+            triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
+
+            r.lastTriggeredAt = new Date().toISOString();
+            r.synced = 0;
+            hasChanges = true;
+
+            // Cập nhật nextReminderDate cho các tần suất lặp lại
+            if (r.frequency !== "ONCE") {
+                const nextDate = computeNextReminderDate(todayStr, r.frequency, r.everyValue, r.everyUnit);
+                if (nextDate) {
+                    r.nextReminderDate = nextDate;
+                } else {
+                    // Nếu không tính được ngày tiếp theo, tắt reminder
+                    r.status = "DISABLED";
+                }
+            } else {
+                // Nhắc một lần: tắt sau khi đã nhắc
+                r.status = "DISABLED";
+            }
+
+            updateReminderInDB(r);
+        }
+    });
+
+    if (hasChanges) {
+        renderRemindersList(reminders);
+    }
+} // end function checkAndTriggerReminders
+
+// end THÔNG BÁO ĐẨY
+
+// =========================================================================
 // SCROLL TO TOP
 // =========================================================================
 window.onscroll = function() {
