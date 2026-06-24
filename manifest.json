@@ -12,5 +12,7 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "apple-mobile-web-app-capable": "yes",
+  "apple-mobile-web-app-status-bar-style": "black-translucent"
 }
