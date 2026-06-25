@@ -31,6 +31,7 @@ self.addEventListener('install', event => {
             })
             .catch(err => {
                 console.log('[SW] Lỗi cache:', err);
+                // Vẫn tiếp tục cài đặt dù cache có lỗi
                 return self.skipWaiting();
             })
     );
@@ -61,8 +62,10 @@ self.addEventListener('fetch', event => {
     event.respondWith(
         caches.match(event.request)
             .then(response => {
+                // Trả về từ cache nếu có, nếu không fetch từ network
                 return response || fetch(event.request)
                     .then(networkResponse => {
+                        // Cache các request thành công
                         if (networkResponse && networkResponse.status === 200) {
                             const responseClone = networkResponse.clone();
                             caches.open(CACHE_NAME).then(cache => {
@@ -72,6 +75,7 @@ self.addEventListener('fetch', event => {
                         return networkResponse;
                     })
                     .catch(() => {
+                        // Fallback nếu offline và không có cache
                         return new Response('Offline - Không thể tải tài nguyên', {
                             status: 503,
                             statusText: 'Service Unavailable'
@@ -109,6 +113,7 @@ self.addEventListener('push', event => {
         badge: '/icon.png',
         vibrate: [200, 100, 200],
         data: data.data || {},
+        // Thêm các option cho iOS
         requireInteraction: true,
         silent: false,
         tag: data.tag || 'reminder-notification',
@@ -142,29 +147,35 @@ self.addEventListener('notificationclick', event => {
     event.notification.close();
     
     const action = event.action;
+    const notificationData = event.notification.data || {};
     
     if (action === 'dismiss') {
+        // User đã dismiss notification
         console.log('[SW] Notification dismissed');
         return;
     }
     
+    // Mở ứng dụng và chuyển đến trang tương ứng
     event.waitUntil(
         clients.matchAll({
             type: 'window',
             includeUncontrolled: true
         })
         .then(clients => {
+            // Nếu có window đang mở, focus vào nó
             for (let client of clients) {
                 if (client.url && client.url.includes('/index.html') && 'focus' in client) {
                     return client.focus();
                 }
             }
+            // Nếu không có window nào, mở mới
             if (clients.openWindow) {
                 return clients.openWindow('/');
             }
         })
         .catch(err => {
             console.log('[SW] Lỗi mở window:', err);
+            // Fallback: thử mở window
             return clients.openWindow('/');
         })
     );
@@ -204,6 +215,7 @@ self.addEventListener('message', event => {
 // XỬ LÝ BACKGROUND SYNC - HỖ TRỢ IOS
 // =========================================================================
 
+// Đăng ký background sync (nếu được hỗ trợ)
 self.addEventListener('sync', event => {
     console.log('[SW] Background sync event:', event.tag);
     
@@ -225,6 +237,7 @@ async function checkAndSendReminders() {
     console.log('[SW] Checking reminders in background...');
     
     try {
+        // Lấy dữ liệu reminders từ cache
         const cache = await caches.open('reminder-cache');
         const response = await cache.match('/reminders-data');
         
@@ -271,6 +284,7 @@ async function checkAndSendReminders() {
             }
         });
         
+        // Gửi từng notification
         for (let noti of notifications) {
             await self.registration.showNotification(noti.title, {
                 body: noti.body,
@@ -299,10 +313,107 @@ function formatDateOnly(d) {
 } // end function formatDateOnly
 
 // =========================================================================
+// XỬ LÝ OFFLINE - HIỂN THỊ TRANG OFFLINE
+// =========================================================================
+
+// Tạo trang offline fallback
+const OFFLINE_PAGE = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline - TÔI</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #1a1a1a;
+            color: #fff;
+            text-align: center;
+        }
+        .offline-container {
+            max-width: 400px;
+            padding: 20px;
+        }
+        .offline-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        p {
+            opacity: 0.7;
+            font-size: 14px;
+        }
+        .btn {
+            background: #FFC107;
+            color: #111;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">📡</div>
+        <h1>Không có kết nối mạng</h1>
+        <p>Vui lòng kiểm tra kết nối Internet của bạn và thử lại.</p>
+        <button class="btn" onclick="location.reload()">🔄 Thử lại</button>
+    </div>
+</body>
+</html>
+`;
+
+// =========================================================================
 // LOG SERVICE WORKER EVENTS
 // =========================================================================
 
+// Log khi service worker được cài đặt
 console.log('[SW] Service Worker loaded');
+
+// Lưu trữ offline page
+self.addEventListener('install', event => {
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(cache => {
+                // Lưu trang offline
+                const offlineResponse = new Response(OFFLINE_PAGE, {
+                    headers: { 'Content-Type': 'text/html' }
+                });
+                return cache.put('/offline.html', offlineResponse);
+            })
+    );
+}); // end event install
+
+// Xử lý fetch cho offline
+self.addEventListener('fetch', event => {
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request)
+                .catch(() => {
+                    return caches.match('/offline.html');
+                })
+        );
+        return;
+    }
+    // ... phần fetch còn lại giữ nguyên
+}); // end event fetch
+
+// =========================================================================
+// THÔNG BÁO LỖI - GIÚP DEBUG
+// =========================================================================
 
 // Lắng nghe lỗi
 self.addEventListener('error', event => {
