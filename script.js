@@ -18,11 +18,11 @@ const CATEGORIES = {
     },
     chi: {
         "Ăn uống": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, Siêu thị", "Ăn vặt, Đồ ngọt"],
-        "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng xe", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
+        "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
         "Mua sắm & Cá nhân": ["Quần áo", "Phụ kiện", "Mĩ phẩm", "Đồ gia dụng", "Đồ chơi", "Sách, Văn phòng phẩm", "Tiền tiêu vặt"],
         "Y tế & Sức khỏe": ["Khám, chữa bệnh", "Thuốc", "Thực phẩm chức năng"],
         "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
-        "Giải trí": ["Coi phim", "Du lịch", "Quán cafe", "Nhà hàng"],
+        "Giải trí": ["Coi phim", "Du lịch", "Quán cafe"],
         "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
         "Chi khác & Giao tế": ["Từ thiện", "Biếu tặng"]
     }
@@ -139,18 +139,33 @@ function formatDisplayDate(dateStr) {
 function requestNotificationPermission() {
     if (!("Notification" in window)) {
         console.log("Trình duyệt không hỗ trợ Notification");
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            console.log("iOS detected - using fallback notification");
+        }
         return;
     }
     
+    const hasAsked = localStorage.getItem('notification_asked');
+    
     if (Notification.permission === "default") {
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                console.log("Đã được cấp quyền thông báo");
-                registerServiceWorker();
-            } else {
-                console.log("Từ chối quyền thông báo");
-            }
-        });
+        if (!hasAsked) {
+            document.addEventListener('click', function askOnce() {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        console.log("Đã được cấp quyền thông báo");
+                        registerServiceWorker();
+                        setTimeout(() => {
+                            triggerPushNotification("✅ Thông báo đã sẵn sàng", 
+                                "Bạn sẽ nhận được thông báo nhắc hẹn từ ứng dụng");
+                        }, 1000);
+                    } else {
+                        console.log("Từ chối quyền thông báo");
+                    }
+                });
+                localStorage.setItem('notification_asked', 'true');
+                document.removeEventListener('click', askOnce);
+            });
+        }
     } else if (Notification.permission === "granted") {
         registerServiceWorker();
     }
@@ -158,19 +173,31 @@ function requestNotificationPermission() {
 
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => {
-                console.log('Service Worker đăng ký thành công:', reg);
-            })
-            .catch(err => {
-                console.log('Lỗi đăng ký Service Worker:', err);
-            });
+        const tryRegister = () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => {
+                    console.log('Service Worker đăng ký thành công:', reg);
+                    if (reg.active) {
+                        console.log('Service Worker đã active');
+                    }
+                })
+                .catch(err => {
+                    console.log('Lỗi đăng ký Service Worker:', err);
+                    setTimeout(tryRegister, 2000);
+                });
+        };
+        tryRegister();
     }
 } // end function registerServiceWorker
 
 function triggerPushNotification(title, body) {
     if (!("Notification" in window)) {
         console.log("Trình duyệt không hỗ trợ Notification");
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            if (document.hidden === false) {
+                showToastNotification(title, body);
+            }
+        }
         return;
     }
     
@@ -184,28 +211,117 @@ function triggerPushNotification(title, body) {
                     icon: 'icon.png'
                 });
             } else {
-                new Notification(title, {
+                const notification = new Notification(title, {
                     body: body,
                     icon: 'icon.png',
-                    vibrate: [200, 100, 200]
+                    vibrate: [200, 100, 200],
+                    requireInteraction: true,
+                    silent: false
                 });
+                setTimeout(() => {
+                    notification.close();
+                }, 30000);
             }
         } catch(e) {
             console.log("Lỗi gửi thông báo:", e);
-            try {
-                new Notification(title, { body: body });
-            } catch(e2) {
-                console.log("Không thể gửi thông báo:", e2);
+            if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+                showToastNotification(title, body);
             }
         }
-    } else {
+    } else if (Notification.permission === "default") {
         Notification.requestPermission().then(permission => {
             if (permission === "granted") {
                 triggerPushNotification(title, body);
             }
         });
+    } else {
+        console.log("Notification bị từ chối");
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            showToastNotification(title, body);
+        }
     }
 } // end function triggerPushNotification
+
+function showToastNotification(title, body) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            width: 90%;
+            max-width: 400px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 2px solid var(--theme-color);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            display: none;
+            animation: slideDown 0.3s ease;
+        `;
+        document.body.appendChild(container);
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+            }
+            @keyframes slideUp {
+                from {
+                    opacity: 1;
+                    transform: translateX(-50%) translateY(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateX(-50%) translateY(-20px);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    container.innerHTML = `
+        <div style="display: flex; align-items: start; gap: 12px;">
+            <div style="font-size: 24px;">🔔</div>
+            <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 1rem; color: var(--theme-color);">${title}</div>
+                <div style="font-size: 0.9rem; margin-top: 4px; opacity: 0.9;">${body}</div>
+            </div>
+            <button onclick="this.parentElement.parentElement.style.display='none'" 
+                    style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">
+                ✕
+            </button>
+        </div>
+    `;
+    
+    container.style.display = 'block';
+    
+    setTimeout(() => {
+        if (container) {
+            container.style.animation = 'slideUp 0.3s ease forwards';
+            setTimeout(() => {
+                container.style.display = 'none';
+                container.style.animation = '';
+            }, 300);
+        }
+    }, 8000);
+    
+    if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+    }
+} // end function showToastNotification
 // end THÔNG BÁO ĐẨY
 
 // =========================================================================
