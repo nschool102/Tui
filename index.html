@@ -6,6 +6,14 @@
     <title>TÔI</title>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="styles.css">
+    <!-- Meta tags cho PWA -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon.png">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="shortcut icon" href="icon.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 </head>
@@ -346,6 +354,23 @@
     <button class="scroll-top" id="scrollTopBtn">↑</button>
     <!-- Thêm vào cuối body, trước script -->
     <div id="toast-container" style="display: none;"></div>
+    <!-- ĐĂNG KÝ SERVICE WORKER -->
+    <script>
+        // Đăng ký Service Worker
+        if ('serviceWorker' in navigator) {
+            // Đợi trang load xong mới đăng ký
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => {
+                        console.log('Service Worker đăng ký thành công:', reg);
+                    })
+                    .catch(err => {
+                        console.log('Lỗi đăng ký Service Worker:', err);
+                    });
+            });
+        }
+    </script>
+    <!-- end ĐĂNG KÝ SERVICE WORKER -->
     <script src="script.js"></script>
 </body>
 </html>
