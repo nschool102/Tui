@@ -601,8 +601,20 @@ function saveTransaction(event, mode) {
 
     const formattedNote = toSentenceCase(note);
 
+    // Tạo timestamp ở định dạng ISO nhưng không chuyển sang UTC
+    // Giữ nguyên giờ địa phương
+    let timestamp;
+    if (dateVal) {
+        const localDate = new Date(dateVal);
+        // Lấy giờ địa phương, không chuyển đổi
+        const offset = localDate.getTimezoneOffset() * 60000;
+        timestamp = new Date(localDate.getTime() + offset).toISOString();
+    } else {
+        timestamp = new Date().toISOString();
+    }
+
     const transaction = {
-        timestamp: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+        timestamp: timestamp,
         type: type,
         subtype: subtype,
         amount: amount,
@@ -623,6 +635,24 @@ function saveTransaction(event, mode) {
         alert("Lỗi lưu giao dịch: " + e.target.error);
     };
 } // end function saveTransaction
+
+// Hàm format date hiển thị trên giao diện
+function formatDisplayDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch(e) {
+        return dateStr;
+    }
+} // end function formatDisplayDate
+
 
 function getAllTransactions(callback) {
     if (!db) {
@@ -784,7 +814,7 @@ function renderChartsAndStats() {
         if (expList.length && expContainer) {
             let htmlChi = `<table class="history-table"><tbody>`;
             expList.forEach(t => {
-                let dStr = new Date(t.timestamp).toLocaleDateString('vi-VN');
+                let dStr = formatDisplayDate(t.timestamp);
                 let contentStr = `${t.subtype} ${t.note ? `<br><small style="opacity:0.7;"><i>📝 ${t.note}</i></small>` : ''}`;
                 htmlChi += `<tr><td>${dStr}</td><td>${t.type}</td><td>${contentStr}</td><td class="amount-col" style="color:var(--danger-color);">${formatVND(Math.abs(t.amount))}</td></tr>`;
             });
