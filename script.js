@@ -17,14 +17,13 @@ const CATEGORIES = {
         "CON CỢP": ["Lương tháng", "Bổ sung lương", "Bổ sung thưởng"]
     },
     chi: {
-    "Ăn uống": ["Ăn sáng", "Ăn trưa", "Ăn tối", "Đi chợ, Siêu thị", "Ăn vặt, Đồ ngọt"],
-    "Chi tiêu thiết yếu": ["Điện", "Nước", "Internet", "Điện thoại", "Xăng", "Taxi, bus, xe công nghệ", "Dịch vụ công"],
-    "Mua sắm & Cá nhân": ["Quần áo", "Phụ kiện", "Mĩ phẩm", "Đồ gia dụng", "Đồ chơi", "Sách, Văn phòng phẩm", "Tiền tiêu vặt"],
-    "Y tế & Sức khỏe": ["Khám, chữa bệnh", "Thuốc", "Thực phẩm chức năng"],
-    "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
-    "Giải trí": ["Coi phim", "Du lịch", "Quán cafe"],
-    "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
-    "Chi khác & Giao tế": ["Từ thiện", "Biếu tặng"]
+        "Chi khác": ["Từ thiện", "Biếu tặng", "Dịch vụ công"],
+        "Chi tiêu thiết yếu": ["Đi chợ, siêu thị", "Điện", "Nước", "Internet", "Xăng", "Tiền tiêu vặt", "Điện thoại", "Transportation"],
+        "Đầu tư, tiết kiệm": ["Vàng", "Tiền mặt", "USDT", "Cho mượn"],
+        "Giải trí": ["Cafe", "Coi phim", "Du lịch", "Nhà hàng"],
+        "Giáo dục": ["Học phí", "Học thêm", "Quĩ lớp", "Lệ phí"],
+        "Mua sắm": ["Đồ ăn, thức uống", "Đồ chơi", "Đồ gia dụng", "Mĩ phẩm", "Phụ kiện", "Quần áo", "Sách, Văn phòng phẩm", "Thực phẩm chức năng"],
+        "Y tế": ["Khám, chữa bệnh", "Thuốc"]
     }
 };
 
@@ -50,6 +49,88 @@ function toSentenceCase(str) {
     if (str === str.toUpperCase()) return str;
     return str.charAt(0).toUpperCase() + str.slice(1);
 } // end function toSentenceCase
+
+// =========================================================================
+// HÀM XỬ LÝ NGÀY THÁNG CHO VIỆT NAM (GMT+7)
+// =========================================================================
+
+// Hàm format ngày theo định dạng yyyy-mm-dd hh:mm:ss (GMT+7)
+function formatVietnamDateTime(date) {
+    if (!date) return '';
+    
+    let d;
+    if (typeof date === 'string') {
+        d = new Date(date);
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) return '';
+    
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+} // end function formatVietnamDateTime
+
+// Hàm lấy thời gian hiện tại theo GMT+7
+function getVietnamNow() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const vietnamTime = new Date(now.getTime() + (offset + 420) * 60000);
+    return vietnamTime;
+} // end function getVietnamNow
+
+// Hàm format date chỉ lấy phần ngày (yyyy-mm-dd)
+function formatDateOnly(d) {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+} // end function formatDateOnly
+
+// Hàm lấy ngày hôm nay theo GMT+7
+function getVietnamToday() {
+    const now = getVietnamNow();
+    return formatDateOnly(now);
+} // end function getVietnamToday
+
+// Hàm lấy ngày mai theo GMT+7
+function getVietnamTomorrow() {
+    const now = getVietnamNow();
+    now.setDate(now.getDate() + 1);
+    return formatDateOnly(now);
+} // end function getVietnamTomorrow
+
+// Hàm hiển thị ngày dạng dd/mm/yyyy hh:mm
+function formatDisplayDate(dateStr) {
+    if (!dateStr) return '';
+    try {
+        // Nếu là chuỗi yyyy-mm-dd hh:mm:ss
+        if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+            const parts = dateStr.split(' ');
+            const dateParts = parts[0].split('-');
+            const timeParts = parts[1].split(':');
+            return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${timeParts[0]}:${timeParts[1]}`;
+        }
+        // Nếu là Date object
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hours}:${minutes}`;
+    } catch(e) {
+        return dateStr;
+    }
+} // end function formatDisplayDate
 
 // =========================================================================
 // THÔNG BÁO ĐẨY (PUSH NOTIFICATION)
@@ -284,16 +365,31 @@ function updateLastSyncTime() {
 // =========================================================================
 function updateSummaryTotals() {
     getAllTransactions(data => {
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        const today = getVietnamNow();
+        const currentMonth = today.getMonth();
+        const currentYear = today.getFullYear();
         
         let totalThu = 0;
         let totalChi = 0;
         
         data.forEach(t => {
-            const tDate = new Date(t.timestamp);
-            if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+            // Parse timestamp từ chuỗi yyyy-mm-dd hh:mm:ss
+            let tDate;
+            if (typeof t.timestamp === 'string' && t.timestamp.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+                const parts = t.timestamp.split(' ');
+                const dateParts = parts[0].split('-');
+                tDate = new Date(
+                    parseInt(dateParts[0]),
+                    parseInt(dateParts[1]) - 1,
+                    parseInt(dateParts[2])
+                );
+            } else {
+                tDate = new Date(t.timestamp);
+            }
+            
+            if (!isNaN(tDate.getTime()) && 
+                tDate.getMonth() === currentMonth && 
+                tDate.getFullYear() === currentYear) {
                 if (t.amount > 0) {
                     totalThu += t.amount;
                 } else {
@@ -319,7 +415,7 @@ function updateSummaryTotals() {
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
 function initDB() {
-    const request = indexedDB.open("FamilyFinancePWA", 4);
+    const request = indexedDB.open("FamilyFinancePWA", 5);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
         if (!db.objectStoreNames.contains("transactions")) {
@@ -433,6 +529,23 @@ function setupEventListeners() {
     }
 
     // ============================================================
+    // REMINDER ALERT MODAL - ĐÓNG BẰNG NÚT, CLICK OUTSIDE, ESC
+    // ============================================================
+    const reminderCloseBtn = document.getElementById('reminder-alert-close');
+    if (reminderCloseBtn) {
+        reminderCloseBtn.addEventListener('click', closeReminderAlert);
+    }
+
+    const reminderModal = document.getElementById('reminderAlertModal');
+    if (reminderModal) {
+        reminderModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeReminderAlert();
+            }
+        });
+    }
+
+    // ============================================================
     // ĐÓNG MODAL BẰNG PHÍM ESC
     // ============================================================
     document.addEventListener("keydown", function(e) {
@@ -444,6 +557,10 @@ function setupEventListeners() {
             const appInfoModal = document.getElementById("appInfoModal");
             if (appInfoModal && appInfoModal.style.display === "flex") {
                 closeAppInfoModal();
+            }
+            const reminderModal = document.getElementById("reminderAlertModal");
+            if (reminderModal && reminderModal.style.display === "flex") {
+                closeReminderAlert();
             }
         }
     });
@@ -525,10 +642,17 @@ function initFormOptions() {
         });
         updateSubtypes(mode);
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const now = getVietnamNow();
         const dateInput = document.getElementById(`${mode}-date`);
-        if (dateInput) dateInput.value = now.toISOString().slice(0, 16);
+        if (dateInput) {
+            // Format cho input datetime-local
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
     });
     initReminderDateOptions();
     initColorSettings();
@@ -577,7 +701,7 @@ function initReminderDateOptions() {
         ySel.innerHTML += `<option value="${i}">Năm ${i}</option>`;
     }
 
-    const today = new Date();
+    const today = getVietnamNow();
     dSel.value = today.getDate();
     mSel.value = today.getMonth() + 1;
     ySel.value = today.getFullYear();
@@ -601,17 +725,20 @@ function saveTransaction(event, mode) {
 
     const formattedNote = toSentenceCase(note);
 
-    // Tạo timestamp ở định dạng ISO nhưng không chuyển sang UTC
-    // Giữ nguyên giờ địa phương
-    let timestamp;
+    // Tạo timestamp theo múi giờ Việt Nam
+    let date;
     if (dateVal) {
-        const localDate = new Date(dateVal);
-        // Lấy giờ địa phương, không chuyển đổi
-        const offset = localDate.getTimezoneOffset() * 60000;
-        timestamp = new Date(localDate.getTime() + offset).toISOString();
+        date = new Date(dateVal);
     } else {
-        timestamp = new Date().toISOString();
+        date = new Date();
     }
+    
+    // Điều chỉnh về GMT+7
+    const offset = date.getTimezoneOffset();
+    const vietnamTime = new Date(date.getTime() + (offset + 420) * 60000);
+    
+    // Format theo yyyy-mm-dd hh:mm:ss
+    const timestamp = formatVietnamDateTime(vietnamTime);
 
     const transaction = {
         timestamp: timestamp,
@@ -635,24 +762,6 @@ function saveTransaction(event, mode) {
         alert("Lỗi lưu giao dịch: " + e.target.error);
     };
 } // end function saveTransaction
-
-// Hàm format date hiển thị trên giao diện
-function formatDisplayDate(dateStr) {
-    if (!dateStr) return '';
-    try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return dateStr;
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        const hours = String(d.getHours()).padStart(2, '0');
-        const minutes = String(d.getMinutes()).padStart(2, '0');
-        return `${day}/${month}/${year} ${hours}:${minutes}`;
-    } catch(e) {
-        return dateStr;
-    }
-} // end function formatDisplayDate
-
 
 function getAllTransactions(callback) {
     if (!db) {
@@ -799,14 +908,20 @@ function renderChartsAndStats() {
         let catCurrentMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
         let catPrevMonth = { "Tổng": 0, "Ăn uống": 0, "Đồ chơi": 0, "Mỹ phẩm": 0, "Quần áo": 0 };
 
-        const now = new Date();
+        const now = getVietnamNow();
         const cM = now.getMonth();
         const cY = now.getFullYear();
         let pM = cM - 1;
         let pY = cY;
         if (pM < 0) { pM = 11; pY--; }
 
-        let sortedData = [...data].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        let sortedData = [...data].sort((a, b) => {
+            // So sánh timestamp dạng yyyy-mm-dd hh:mm:ss
+            if (a.timestamp < b.timestamp) return 1;
+            if (a.timestamp > b.timestamp) return -1;
+            return 0;
+        });
+        
         let expList = sortedData.filter(t => t.amount < 0).slice(0, 20);
         let incList = sortedData.filter(t => t.amount > 0).slice(0, 20);
 
@@ -828,7 +943,7 @@ function renderChartsAndStats() {
         if (incList.length && incContainer) {
             let htmlThu = `<table class="history-table"><tbody>`;
             incList.forEach(t => {
-                let dStr = new Date(t.timestamp).toLocaleDateString('vi-VN');
+                let dStr = formatDisplayDate(t.timestamp);
                 let contentStr = `${t.subtype} ${t.note ? `<br><small style="opacity:0.7;"><i>📝 ${t.note}</i></small>` : ''}`;
                 htmlThu += `<tr><td>${dStr}</td><td>${t.type}</td><td>${contentStr}</td><td class="amount-col" style="color:var(--success-color);">${formatVND(t.amount)}</td></tr>`;
             });
@@ -839,7 +954,20 @@ function renderChartsAndStats() {
         }
 
         data.forEach(t => {
-            const tDate = new Date(t.timestamp);
+            // Parse timestamp
+            let tDate;
+            if (typeof t.timestamp === 'string' && t.timestamp.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+                const parts = t.timestamp.split(' ');
+                const dateParts = parts[0].split('-');
+                tDate = new Date(
+                    parseInt(dateParts[0]),
+                    parseInt(dateParts[1]) - 1,
+                    parseInt(dateParts[2])
+                );
+            } else {
+                tDate = new Date(t.timestamp);
+            }
+            
             const amt = t.amount;
 
             if (amt > 0) {
@@ -850,7 +978,9 @@ function renderChartsAndStats() {
                 totalChi += Math.abs(amt);
                 let absAmt = Math.abs(amt);
 
-                if (tDate.getFullYear() === cY && tDate.getMonth() === cM) {
+                if (!isNaN(tDate.getTime()) && 
+                    tDate.getFullYear() === cY && 
+                    tDate.getMonth() === cM) {
                     catCurrentMonth["Tổng"] += absAmt;
                     if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") {
                         catCurrentMonth["Ăn uống"] += absAmt;
@@ -858,7 +988,9 @@ function renderChartsAndStats() {
                     if (t.subtype === "Đồ chơi") catCurrentMonth["Đồ chơi"] += absAmt;
                     if (t.subtype === "Mỹ phẩm") catCurrentMonth["Mỹ phẩm"] += absAmt;
                     if (t.subtype === "Quần áo") catCurrentMonth["Quần áo"] += absAmt;
-                } else if (tDate.getFullYear() === pY && tDate.getMonth() === pM) {
+                } else if (!isNaN(tDate.getTime()) && 
+                           tDate.getFullYear() === pY && 
+                           tDate.getMonth() === pM) {
                     catPrevMonth["Tổng"] += absAmt;
                     if (t.subtype === "Đi chợ, siêu thị" || t.type === "Giải trí") {
                         catPrevMonth["Ăn uống"] += absAmt;
@@ -910,19 +1042,35 @@ function renderTopExpenses() {
     if (!periodSelect) return;
 
     const period = periodSelect.value;
-    const now = new Date();
+    const now = getVietnamNow();
 
     getAllTransactions(data => {
         let filtered = data.filter(t => t.amount < 0).filter(t => {
-            let d = new Date(t.timestamp);
+            let tDate;
+            if (typeof t.timestamp === 'string' && t.timestamp.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+                const parts = t.timestamp.split(' ');
+                const dateParts = parts[0].split('-');
+                tDate = new Date(
+                    parseInt(dateParts[0]),
+                    parseInt(dateParts[1]) - 1,
+                    parseInt(dateParts[2])
+                );
+            } else {
+                tDate = new Date(t.timestamp);
+            }
+            
+            if (isNaN(tDate.getTime())) return false;
+            
             if (period === 'week') {
-                return (now - d) <= 7 * 24 * 60 * 60 * 1000;
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                return tDate >= weekAgo && tDate <= now;
             }
             if (period === 'month') {
-                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
             }
             if (period === 'year') {
-                return d.getFullYear() === now.getFullYear();
+                return tDate.getFullYear() === now.getFullYear();
             }
             return true;
         });
@@ -969,21 +1117,35 @@ function renderSection4(allData) {
 
     const period = periodSelect.value;
     const run = data => {
-        const now = new Date();
+        const now = getVietnamNow();
         let currentBalance = 0;
         let totalThu = 0;
         let fullChi = 0;
         let investmentSavings = 0;
 
         data.forEach(t => {
-            let d = new Date(t.timestamp);
+            let tDate;
+            if (typeof t.timestamp === 'string' && t.timestamp.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) {
+                const parts = t.timestamp.split(' ');
+                const dateParts = parts[0].split('-');
+                tDate = new Date(
+                    parseInt(dateParts[0]),
+                    parseInt(dateParts[1]) - 1,
+                    parseInt(dateParts[2])
+                );
+            } else {
+                tDate = new Date(t.timestamp);
+            }
+            
             currentBalance += t.amount;
 
             let isMatch = false;
-            if (period === 'month') {
-                isMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            } else {
-                isMatch = d.getFullYear() === now.getFullYear();
+            if (!isNaN(tDate.getTime())) {
+                if (period === 'month') {
+                    isMatch = tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+                } else {
+                    isMatch = tDate.getFullYear() === now.getFullYear();
+                }
             }
 
             if (isMatch) {
@@ -1268,20 +1430,15 @@ function isCorruptedReminder(r) {
     if (!r || typeof r !== 'object') return true;
     if (!r.content || typeof r.content !== 'string' || !r.content.trim()) return true;
     if (!VALID_REMINDER_FREQUENCIES.includes(r.frequency)) return true;
-    if (!isValidDateOnlyString(r.startDate)) return true;
-    if (r.nextReminderDate && !isValidDateOnlyString(r.nextReminderDate)) return true;
+    if (!r.startDate || !r.startDate.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) return true;
+    if (r.nextReminderDate && !r.nextReminderDate.match(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)) return true;
     return false;
 } // end function isCorruptedReminder
 
-function isValidDateOnlyString(str) {
-    if (!str || typeof str !== 'string') return false;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
-    const d = new Date(str);
-    return !isNaN(d.getTime());
-} // end function isValidDateOnlyString
-
 function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) {
-    const d = new Date(fromDateStr);
+    // Tách lấy phần ngày từ chuỗi yyyy-mm-dd hh:mm:ss
+    const datePart = fromDateStr.slice(0, 10);
+    const d = new Date(datePart);
     d.setHours(0, 0, 0, 0);
 
     if (frequency === "DAILY") {
@@ -1302,7 +1459,7 @@ function computeNextReminderDate(fromDateStr, frequency, everyValue, everyUnit) 
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    return `${yyyy}-${mm}-${dd} 00:00:00`;
 } // end function computeNextReminderDate
 
 function saveReminder(event) {
@@ -1327,15 +1484,19 @@ function saveReminder(event) {
     }
 
     const formattedContent = toSentenceCase(content);
+    
+    // Tạo ngày bắt đầu theo định dạng yyyy-mm-dd
     const startDateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    // Thêm giờ 00:00:00
+    const startDateTime = `${startDateStr} 00:00:00`;
 
     const reminderItem = {
         content: formattedContent,
-        startDate: startDateStr,
+        startDate: startDateTime,
         frequency: frequency,
         everyValue: frequency === "CUSTOM" ? parseInt(everyVal) : null,
         everyUnit: frequency === "CUSTOM" ? everyUnit : null,
-        nextReminderDate: startDateStr,
+        nextReminderDate: startDateTime,
         lastTriggeredAt: "",
         synced: 0,
         status: "ENABLED"
@@ -1381,6 +1542,8 @@ function generateRemindersInterface() {
         localReminderData = list;
         renderRemindersList(list);
         checkAndTriggerReminders(list);
+        // Hiển thị modal nếu có nhắc hẹn
+        showReminderAlert(list);
     };
     request.onerror = function(e) {
         container.innerHTML = "Lỗi đọc dữ liệu nhắc hẹn.";
@@ -1411,21 +1574,13 @@ function renderRemindersList(list) {
         let freqText = formatFrequencyLabel(r);
 
         let displayDateSource = r.nextReminderDate || r.startDate;
-        let displayDate = displayDateSource;
-        if (displayDateSource) {
-            let parts = displayDateSource.split("-");
-            if (parts.length === 3) {
-                displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-        }
+        let displayDate = displayDateSource ? formatDisplayDate(displayDateSource) : '';
 
         let statusColor = r.status === "ENABLED" ? "var(--success-color)" : "var(--danger-color)";
         let statusText = r.status === "ENABLED" ? "✅ Hoạt động" : "⛔ Tắt";
 
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const remDate = new Date(displayDateSource);
-        remDate.setHours(0,0,0,0);
+        const today = getVietnamToday();
+        const remDate = r.nextReminderDate ? r.nextReminderDate.slice(0, 10) : '';
         let isPast = remDate < today && r.frequency === "ONCE";
 
         html += `<tr style="${isPast ? 'opacity:0.5;' : ''}">
@@ -1454,13 +1609,155 @@ function formatFrequencyLabel(r) {
     return freqMap[r.frequency] || r.frequency || "ONCE";
 } // end function formatFrequencyLabel
 
+// =========================================================================
+// MODAL THÔNG BÁO NHẮC HẸN
+// =========================================================================
+
+// Hàm hiển thị modal thông báo nhắc hẹn
+function showReminderAlert(reminders) {
+    const modal = document.getElementById('reminderAlertModal');
+    if (!modal) return;
+    
+    const today = getVietnamToday();
+    const dismissed = JSON.parse(localStorage.getItem('reminder_dismissed') || '{}');
+    
+    // Lọc các reminder cần hiển thị (chưa bị dismiss)
+    const activeReminders = reminders.filter(r => {
+        if (r.status === "DISABLED") return false;
+        const key = `${r.id}_${today}`;
+        return !dismissed[key];
+    });
+    
+    if (activeReminders.length === 0) {
+        modal.style.display = 'none';
+        return;
+    }
+    
+    const todayReminders = [];
+    const tomorrowReminders = [];
+    const tomorrow = getVietnamTomorrow();
+    
+    activeReminders.forEach(r => {
+        const targetDateStr = r.nextReminderDate || r.startDate;
+        if (!targetDateStr) return;
+        const targetDate = targetDateStr.slice(0, 10);
+        
+        if (targetDate === today) {
+            todayReminders.push(r);
+        } else if (targetDate === tomorrow) {
+            tomorrowReminders.push(r);
+        }
+    });
+    
+    if (todayReminders.length === 0 && tomorrowReminders.length === 0) {
+        modal.style.display = 'none';
+        return;
+    }
+    
+    // Xây dựng nội dung modal
+    const titleEl = document.getElementById('reminder-alert-title');
+    const bodyEl = document.getElementById('reminder-alert-body');
+    const listEl = document.getElementById('reminder-alert-list');
+    const doNotRemindCheckbox = document.getElementById('reminder-do-not-remind');
+    
+    if (doNotRemindCheckbox) doNotRemindCheckbox.checked = false;
+    
+    let html = '';
+    let hasToday = false;
+    let hasTomorrow = false;
+    
+    if (todayReminders.length > 0) {
+        hasToday = true;
+        html += `<div style="color: var(--danger-color); font-weight: bold; margin: 8px 0 4px 0;">📌 HÔM NAY:</div>`;
+        todayReminders.forEach(r => {
+            const freqText = formatFrequencyLabel(r);
+            html += `<div style="padding: 6px 10px; margin: 4px 0; background: var(--secondary-bg); border-radius: 6px; border-left: 3px solid var(--danger-color);">
+                <span style="font-weight: 600;">${r.content}</span>
+                <span style="font-size: 0.75rem; opacity: 0.7; display: block;">Tần suất: ${freqText}</span>
+            </div>`;
+        });
+    }
+    
+    if (tomorrowReminders.length > 0) {
+        hasTomorrow = true;
+        html += `<div style="color: var(--theme-color); font-weight: bold; margin: 8px 0 4px 0;">🔔 NGÀY MAI:</div>`;
+        tomorrowReminders.forEach(r => {
+            const freqText = formatFrequencyLabel(r);
+            html += `<div style="padding: 6px 10px; margin: 4px 0; background: var(--secondary-bg); border-radius: 6px; border-left: 3px solid var(--theme-color);">
+                <span style="font-weight: 600;">${r.content}</span>
+                <span style="font-size: 0.75rem; opacity: 0.7; display: block;">Tần suất: ${freqText}</span>
+            </div>`;
+        });
+    }
+    
+    if (hasToday && hasTomorrow) {
+        titleEl.textContent = '⏰ HÔM NAY VÀ NGÀY MAI CÓ HẸN';
+        bodyEl.textContent = `Bạn có ${todayReminders.length} lịch hẹn hôm nay và ${tomorrowReminders.length} lịch hẹn ngày mai.`;
+    } else if (hasToday) {
+        titleEl.textContent = '⏰ HÔM NAY CÓ HẸN';
+        bodyEl.textContent = `Bạn có ${todayReminders.length} lịch hẹn hôm nay. Hãy nhớ thực hiện nhé!`;
+    } else if (hasTomorrow) {
+        titleEl.textContent = '🔔 NHẮC TRƯỚC 1 NGÀY';
+        bodyEl.textContent = `Bạn có ${tomorrowReminders.length} lịch hẹn vào ngày mai.`;
+    }
+    
+    listEl.innerHTML = html;
+    
+    modal.style.display = 'flex';
+    modal.dataset.reminders = JSON.stringify(activeReminders);
+    modal.dataset.today = today;
+    
+    // Cập nhật lần nhắc cuối
+    activeReminders.forEach(r => {
+        r.lastTriggeredAt = formatVietnamDateTime(getVietnamNow());
+        r.synced = 0;
+        updateReminderInDB(r);
+    });
+    
+    // Cập nhật ngày nhắc tiếp theo cho các reminder lặp lại
+    activeReminders.forEach(r => {
+        if (r.frequency !== "ONCE") {
+            const nextDate = computeNextReminderDate(today + ' 00:00:00', r.frequency, r.everyValue, r.everyUnit);
+            if (nextDate) {
+                r.nextReminderDate = nextDate;
+                r.synced = 0;
+                updateReminderInDB(r);
+            }
+        } else {
+            r.status = "DISABLED";
+            r.synced = 0;
+            updateReminderInDB(r);
+        }
+    });
+} // end function showReminderAlert
+
+// Hàm đóng modal thông báo nhắc hẹn
+function closeReminderAlert() {
+    const modal = document.getElementById('reminderAlertModal');
+    if (!modal) return;
+    
+    const doNotRemindCheckbox = document.getElementById('reminder-do-not-remind');
+    const today = modal.dataset.today || getVietnamToday();
+    const reminders = JSON.parse(modal.dataset.reminders || '[]');
+    
+    if (doNotRemindCheckbox && doNotRemindCheckbox.checked) {
+        const dismissed = JSON.parse(localStorage.getItem('reminder_dismissed') || '{}');
+        reminders.forEach(r => {
+            const key = `${r.id}_${today}`;
+            dismissed[key] = true;
+        });
+        localStorage.setItem('reminder_dismissed', JSON.stringify(dismissed));
+    }
+    
+    modal.style.display = 'none';
+} // end function closeReminderAlert
+
+// =========================================================================
+// CẬP NHẬT HÀM checkAndTriggerReminders
+// =========================================================================
 function checkAndTriggerReminders(reminders) {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const todayStr = formatDateOnly(today);
-    const tomorrowStr = formatDateOnly(tomorrow);
+    const today = getVietnamToday();
+    const tomorrow = getVietnamTomorrow();
 
     let hasChanges = false;
 
@@ -1470,29 +1767,25 @@ function checkAndTriggerReminders(reminders) {
         const targetDateStr = r.nextReminderDate || r.startDate;
         if (!targetDateStr) return;
 
-        const targetDate = new Date(targetDateStr);
-        targetDate.setHours(0,0,0,0);
+        const targetDate = targetDateStr.slice(0, 10);
 
         if (r.frequency === "ONCE" && targetDate < today) return;
 
-        const alreadyTriggeredToday = r.lastTriggeredAt && r.lastTriggeredAt.slice(0, 10) === todayStr;
+        const alreadyTriggeredToday = r.lastTriggeredAt && 
+            r.lastTriggeredAt.slice(0, 10) === today;
 
-        if (targetDateStr === tomorrowStr) {
-            triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
-        }
-
-        if (targetDateStr === todayStr && !alreadyTriggeredToday) {
-            triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
-
-            r.lastTriggeredAt = new Date().toISOString();
+        if ((targetDate === today || targetDate === tomorrow) && !alreadyTriggeredToday) {
+            r.lastTriggeredAt = formatVietnamDateTime(getVietnamNow());
             r.synced = 0;
             hasChanges = true;
 
             if (r.frequency === "ONCE") {
                 r.status = "DISABLED";
             } else {
-                const nextDate = computeNextReminderDate(todayStr, r.frequency, r.everyValue, r.everyUnit);
-                if (nextDate) r.nextReminderDate = nextDate;
+                const nextDate = computeNextReminderDate(today + ' 00:00:00', r.frequency, r.everyValue, r.everyUnit);
+                if (nextDate) {
+                    r.nextReminderDate = nextDate;
+                }
             }
 
             updateReminderInDB(r);
@@ -1503,13 +1796,6 @@ function checkAndTriggerReminders(reminders) {
         renderRemindersList(reminders);
     }
 } // end function checkAndTriggerReminders
-
-function formatDateOnly(d) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-} // end function formatDateOnly
 
 function updateReminderInDB(reminderItem) {
     if (!db || !reminderItem.id) return;
@@ -1533,6 +1819,7 @@ function startDailyReminderCheck() {
             request.onsuccess = function(e) {
                 const list = e.target.result || [];
                 checkAndTriggerReminders(list);
+                showReminderAlert(list);
             };
         }
     }, 30 * 60 * 1000);
@@ -1939,290 +2226,6 @@ function resetAppCompletely() {
     };
 } // end function resetAppCompletely
 // end RESET APP
-
-// =========================================================================
-// THÔNG BÁO ĐẨY (PUSH NOTIFICATION) - HỖ TRỢ IOS
-// =========================================================================
-
-// Kiểm tra và yêu cầu quyền thông báo
-function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-        console.log("Trình duyệt không hỗ trợ Notification");
-        // iOS fallback - sử dụng alert
-        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-            console.log("iOS detected - using fallback notification");
-        }
-        return;
-    }
-    
-    // Kiểm tra nếu đã từng hỏi trước đó
-    const hasAsked = localStorage.getItem('notification_asked');
-    
-    if (Notification.permission === "default") {
-        // Nếu chưa hỏi hoặc đã hỏi nhưng người dùng chưa trả lời
-        if (!hasAsked) {
-            // Đợi user tương tác với trang rồi mới hỏi (iOS yêu cầu)
-            document.addEventListener('click', function askOnce() {
-                Notification.requestPermission().then(permission => {
-                    if (permission === "granted") {
-                        console.log("Đã được cấp quyền thông báo");
-                        registerServiceWorker();
-                        // Gửi thông báo test
-                        setTimeout(() => {
-                            triggerPushNotification("✅ Thông báo đã sẵn sàng", 
-                                "Bạn sẽ nhận được thông báo nhắc hẹn từ ứng dụng");
-                        }, 1000);
-                    } else {
-                        console.log("Từ chối quyền thông báo");
-                    }
-                });
-                localStorage.setItem('notification_asked', 'true');
-                document.removeEventListener('click', askOnce);
-            });
-        }
-    } else if (Notification.permission === "granted") {
-        registerServiceWorker();
-    }
-} // end function requestNotificationPermission
-
-// Đăng ký Service Worker với retry cho iOS
-function registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-        // Thử đăng ký, nếu thất bại thử lại sau 2 giây
-        const tryRegister = () => {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => {
-                    console.log('Service Worker đăng ký thành công:', reg);
-                    // Theo dõi service worker
-                    if (reg.active) {
-                        console.log('Service Worker đã active');
-                    }
-                })
-                .catch(err => {
-                    console.log('Lỗi đăng ký Service Worker:', err);
-                    // Thử lại sau 2 giây
-                    setTimeout(tryRegister, 2000);
-                });
-        };
-        tryRegister();
-    }
-} // end function registerServiceWorker
-
-// Gửi thông báo đẩy - Tối ưu cho iOS
-function triggerPushNotification(title, body) {
-    if (!("Notification" in window)) {
-        console.log("Trình duyệt không hỗ trợ Notification");
-        // iOS fallback: hiển thị alert
-        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-            // Chỉ hiển thị alert khi app đang mở
-            if (document.hidden === false) {
-                // Sử dụng alert hoặc custom toast
-                showToastNotification(title, body);
-            }
-        }
-        return;
-    }
-    
-    // Kiểm tra quyền
-    if (Notification.permission === "granted") {
-        try {
-            // Kiểm tra xem service worker có controller không
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                // Gửi qua service worker
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'SHOW_NOTIFICATION',
-                    title: title,
-                    body: body,
-                    icon: 'icon.png'
-                });
-            } else {
-                // Fallback: hiển thị trực tiếp
-                const notification = new Notification(title, {
-                    body: body,
-                    icon: 'icon.png',
-                    vibrate: [200, 100, 200],
-                    requireInteraction: true,
-                    silent: false
-                });
-                
-                // Tự động đóng sau 30 giây
-                setTimeout(() => {
-                    notification.close();
-                }, 30000);
-            }
-        } catch(e) {
-            console.log("Lỗi gửi thông báo:", e);
-            // Fallback cho iOS
-            if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-                showToastNotification(title, body);
-            }
-        }
-    } else if (Notification.permission === "default") {
-        // Chưa được cấp quyền, yêu cầu
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                triggerPushNotification(title, body);
-            }
-        });
-    } else {
-        // Bị từ chối - sử dụng fallback
-        console.log("Notification bị từ chối");
-        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
-            showToastNotification(title, body);
-        }
-    }
-} // end function triggerPushNotification
-
-// Hiển thị thông báo dạng toast (fallback cho iOS)
-function showToastNotification(title, body) {
-    // Kiểm tra xem đã có toast container chưa
-    let container = document.getElementById('toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        container.style.cssText = `
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            width: 90%;
-            max-width: 400px;
-            background: var(--card-bg);
-            color: var(--text-color);
-            border: 2px solid var(--theme-color);
-            border-radius: 12px;
-            padding: 16px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            display: none;
-            animation: slideDown 0.3s ease;
-        `;
-        document.body.appendChild(container);
-        
-        // Thêm style animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes slideDown {
-                from {
-                    opacity: 0;
-                    transform: translateX(-50%) translateY(-20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateX(-50%) translateY(0);
-                }
-            }
-            @keyframes slideUp {
-                from {
-                    opacity: 1;
-                    transform: translateX(-50%) translateY(0);
-                }
-                to {
-                    opacity: 0;
-                    transform: translateX(-50%) translateY(-20px);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    // Cập nhật nội dung
-    container.innerHTML = `
-        <div style="display: flex; align-items: start; gap: 12px;">
-            <div style="font-size: 24px;">🔔</div>
-            <div style="flex: 1;">
-                <div style="font-weight: bold; font-size: 1rem; color: var(--theme-color);">${title}</div>
-                <div style="font-size: 0.9rem; margin-top: 4px; opacity: 0.9;">${body}</div>
-            </div>
-            <button onclick="this.parentElement.parentElement.style.display='none'" 
-                    style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--text-color);">
-                ✕
-            </button>
-        </div>
-    `;
-    
-    // Hiển thị
-    container.style.display = 'block';
-    
-    // Tự động ẩn sau 8 giây
-    setTimeout(() => {
-        if (container) {
-            container.style.animation = 'slideUp 0.3s ease forwards';
-            setTimeout(() => {
-                container.style.display = 'none';
-                container.style.animation = '';
-            }, 300);
-        }
-    }, 8000);
-    
-    // Rung nhẹ trên iOS (nếu hỗ trợ)
-    if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
-    }
-} // end function showToastNotification
-
-// Hàm kiểm tra và gửi thông báo - cải thiện cho iOS
-function checkAndTriggerReminders(reminders) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const todayStr = formatDateOnly(today);
-    const tomorrowStr = formatDateOnly(tomorrow);
-
-    let hasChanges = false;
-
-    reminders.forEach(r => {
-        if (r.status === "DISABLED") return;
-
-        const targetDateStr = r.nextReminderDate || r.startDate;
-        if (!targetDateStr) return;
-
-        const targetDate = new Date(targetDateStr);
-        targetDate.setHours(0, 0, 0, 0);
-
-        // Kiểm tra nếu là nhắc một lần và đã qua ngày
-        if (r.frequency === "ONCE" && targetDate < today) return;
-
-        const alreadyTriggeredToday = r.lastTriggeredAt && r.lastTriggeredAt.slice(0, 10) === todayStr;
-
-        // Kiểm tra nhắc trước 1 ngày
-        if (targetDateStr === tomorrowStr) {
-            triggerPushNotification("🔔 NHẮC TRƯỚC 1 NGÀY", `Ngày mai bạn có hẹn: ${r.content}`);
-        }
-
-        // Kiểm tra nhắc đúng ngày
-        if (targetDateStr === todayStr && !alreadyTriggeredToday) {
-            triggerPushNotification("⏰ HÔM NAY CÓ HẸN", r.content);
-
-            r.lastTriggeredAt = new Date().toISOString();
-            r.synced = 0;
-            hasChanges = true;
-
-            // Cập nhật nextReminderDate cho các tần suất lặp lại
-            if (r.frequency !== "ONCE") {
-                const nextDate = computeNextReminderDate(todayStr, r.frequency, r.everyValue, r.everyUnit);
-                if (nextDate) {
-                    r.nextReminderDate = nextDate;
-                } else {
-                    // Nếu không tính được ngày tiếp theo, tắt reminder
-                    r.status = "DISABLED";
-                }
-            } else {
-                // Nhắc một lần: tắt sau khi đã nhắc
-                r.status = "DISABLED";
-            }
-
-            updateReminderInDB(r);
-        }
-    });
-
-    if (hasChanges) {
-        renderRemindersList(reminders);
-    }
-} // end function checkAndTriggerReminders
-
-// end THÔNG BÁO ĐẨY
 
 // =========================================================================
 // SCROLL TO TOP
