@@ -2,18 +2,17 @@
   "name": "TÔI - Quản lý tài chính",
   "short_name": "TÔI",
   "version": "1.0.0",
-  "description": "Ứng dụng quản lý tài chính cá nhân",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#FFC107",
-  "orientation": "portrait",
   "icons": [
     {
       "src": "icon.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
-  ]
+  ],
+  "apple-mobile-web-app-capable": "yes",
+  "apple-mobile-web-app-status-bar-style": "black-translucent"
 }
