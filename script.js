@@ -483,9 +483,8 @@ function formatVietnamDateTime(date) {
     const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
     const seconds = String(vietnamTime.getSeconds()).padStart(2, '0');
     
-    const result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    console.log('📅 formatVietnamDateTime:', date, '→', result);
-    return result;
+    // 👇👇👇 TRẢ VỀ ĐỊNH DẠNG NÀY 👇👇👇
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 } // end function formatVietnamDateTime
 
 function updateSubtypes(mode) {
@@ -520,10 +519,17 @@ function initFormOptions() {
         });
         updateSubtypes(mode);
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        // 👇👇👇 DÙNG GIỜ VIỆT NAM 👇👇👇
+        const now = getVietnamNow();
         const dateInput = document.getElementById(`${mode}-date`);
-        if (dateInput) dateInput.value = now.toISOString().slice(0, 16);
+        if (dateInput) {
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
     });
     initReminderDateOptions();
     initColorSettings();
@@ -582,9 +588,6 @@ function initReminderDateOptions() {
 // =========================================================================
 // XỬ LÝ GIAO DỊCH (TRANSACTIONS) - TAB THU / CHI
 // =========================================================================
-// =========================================================================
-// XỬ LÝ GIAO DỊCH (TRANSACTIONS) - TAB THU / CHI
-// =========================================================================
 function saveTransaction(event, mode) {
     event.preventDefault();
     
@@ -610,17 +613,17 @@ function saveTransaction(event, mode) {
         date = new Date();
     }
     
-    // Format theo yyyy-mm-dd hh:mm:ss (GMT+7)
+    // 👇👇👇 GỌI HÀM FORMAT ĐÚNG 👇👇👇
     const timestamp = formatVietnamDateTime(date);
     console.log('📅 Timestamp:', timestamp);
 
     const transaction = {
-        timestamp: timestamp,
+        timestamp: timestamp,  // ← Đã là định dạng yyyy-mm-dd hh:mm:ss
         type: type,
         subtype: subtype,
         amount: amount,
         note: formattedNote,
-        synced: 0  // ← QUAN TRỌNG: đánh dấu chưa sync
+        synced: 0
     };
 
     console.log('💾 Transaction object:', transaction);
@@ -636,7 +639,6 @@ function saveTransaction(event, mode) {
         initFormOptions();
         renderChartsAndStats();
         
-        // Gọi sync ngay sau khi lưu thành công
         console.log('🔄 Gọi syncToGoogleSheets...');
         syncToGoogleSheets();
     };
