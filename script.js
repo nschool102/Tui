@@ -1,3 +1,52 @@
+// =========================================================================
+// HÀM XỬ LÝ NGÀY THÁNG CHO VIỆT NAM (GMT+7)
+// =========================================================================
+
+// Lấy thời gian hiện tại theo GMT+7
+function getVietnamNow() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    return new Date(now.getTime() + (offset + 420) * 60000);
+} // end function getVietnamNow
+
+// Format ngày theo định dạng yyyy-mm-dd hh:mm:ss (GMT+7)
+function formatVietnamDateTime(date) {
+    if (!date) return '';
+    
+    let d;
+    if (typeof date === 'string') {
+        d = new Date(date);
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) {
+        console.log('⚠️ formatVietnamDateTime: Invalid date');
+        return '';
+    }
+    
+    // Điều chỉnh về GMT+7
+    const offset = d.getTimezoneOffset();
+    const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
+    
+    const year = vietnamTime.getFullYear();
+    const month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
+    const day = String(vietnamTime.getDate()).padStart(2, '0');
+    const hours = String(vietnamTime.getHours()).padStart(2, '0');
+    const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
+    const seconds = String(vietnamTime.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+} // end function formatVietnamDateTime
+
+// Format date chỉ lấy phần ngày (yyyy-mm-dd)
+function formatDateOnly(d) {
+    if (!d) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+} // end function formatDateOnly
 
 // =========================================================================
 // HÀM CHUYỂN ĐỔI SENTENCE CASE
@@ -1579,13 +1628,6 @@ function checkAndTriggerReminders(reminders) {
         renderRemindersList(reminders);
     }
 } // end function checkAndTriggerReminders
-
-function formatDateOnly(d) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-} // end function formatDateOnly
 
 function updateReminderInDB(reminderItem) {
     if (!db || !reminderItem.id) return;
