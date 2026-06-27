@@ -452,6 +452,42 @@ function formatVND(num) {
     return num.toLocaleString('en-US') + " đ";
 } // end function formatVND
 
+// =========================================================================
+// HÀM XỬ LÝ NGÀY THÁNG CHO VIỆT NAM (GMT+7)
+// =========================================================================
+
+// Format ngày theo định dạng yyyy-mm-dd hh:mm:ss (GMT+7)
+function formatVietnamDateTime(date) {
+    if (!date) return '';
+    
+    let d;
+    if (typeof date === 'string') {
+        d = new Date(date);
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) {
+        console.log('⚠️ formatVietnamDateTime: Invalid date');
+        return '';
+    }
+    
+    // Điều chỉnh về GMT+7
+    const offset = d.getTimezoneOffset();
+    const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
+    
+    const year = vietnamTime.getFullYear();
+    const month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
+    const day = String(vietnamTime.getDate()).padStart(2, '0');
+    const hours = String(vietnamTime.getHours()).padStart(2, '0');
+    const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
+    const seconds = String(vietnamTime.getSeconds()).padStart(2, '0');
+    
+    const result = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    console.log('📅 formatVietnamDateTime:', date, '→', result);
+    return result;
+} // end function formatVietnamDateTime
+
 function updateSubtypes(mode) {
     const typeSelect = document.getElementById(`${mode}-type`);
     const subtypeSelect = document.getElementById(`${mode}-subtype`);
@@ -546,8 +582,13 @@ function initReminderDateOptions() {
 // =========================================================================
 // XỬ LÝ GIAO DỊCH (TRANSACTIONS) - TAB THU / CHI
 // =========================================================================
+// =========================================================================
+// XỬ LÝ GIAO DỊCH (TRANSACTIONS) - TAB THU / CHI
+// =========================================================================
 function saveTransaction(event, mode) {
     event.preventDefault();
+    
+    console.log('💾 saveTransaction - mode:', mode);
 
     const type = document.getElementById(`${mode}-type`).value;
     const subtype = document.getElementById(`${mode}-subtype`).value;
@@ -555,62 +596,139 @@ function saveTransaction(event, mode) {
     const dateVal = document.getElementById(`${mode}-date`).value;
     const note = document.getElementById(`${mode}-note`).value;
 
+    console.log('📝 Dữ liệu nhập:', { type, subtype, amount, dateVal, note });
+
     if (mode === 'chi') amount = -Math.abs(amount);
     if (mode === 'thu') amount = Math.abs(amount);
 
     const formattedNote = toSentenceCase(note);
 
+    let date;
+    if (dateVal) {
+        date = new Date(dateVal);
+    } else {
+        date = new Date();
+    }
+    
+    // Format theo yyyy-mm-dd hh:mm:ss (GMT+7)
+    const timestamp = formatVietnamDateTime(date);
+    console.log('📅 Timestamp:', timestamp);
+
     const transaction = {
-        timestamp: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString(),
+        timestamp: timestamp,
         type: type,
         subtype: subtype,
         amount: amount,
         note: formattedNote,
-        synced: 0
+        synced: 0  // ← QUAN TRỌNG: đánh dấu chưa sync
     };
 
+    console.log('💾 Transaction object:', transaction);
+
     const tx = db.transaction("transactions", "readwrite");
-    tx.objectStore("transactions").add(transaction);
-    tx.oncomplete = function() {
+    const store = tx.objectStore("transactions");
+    const request = store.add(transaction);
+    
+    request.onsuccess = function(e) {
+        console.log('✅ Đã lưu vào IndexedDB với id:', e.target.result);
         alert("Đã lưu giao dịch cục bộ!");
         document.getElementById(`form-${mode}`).reset();
         initFormOptions();
         renderChartsAndStats();
+        
+        // Gọi sync ngay sau khi lưu thành công
+        console.log('🔄 Gọi syncToGoogleSheets...');
         syncToGoogleSheets();
     };
-    tx.onerror = function(e) {
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi lưu IndexedDB:', e.target.error);
         alert("Lỗi lưu giao dịch: " + e.target.error);
     };
 } // end function saveTransaction
 
+// =========================================================================
+// LẤY TẤT CẢ GIAO DỊCH TỪ INDEXEDDB
+// =========================================================================
 function getAllTransactions(callback) {
     if (!db) {
+        console.log('❌ getAllTransactions: Chưa có database');
         callback([]);
         return;
     }
+    
     const tx = db.transaction("transactions", "readonly");
     const store = tx.objectStore("transactions");
     const request = store.getAll();
+    
     request.onsuccess = function(e) {
-        callback(e.target.result || []);
+        const result = e.target.result || [];
+        console.log('📊 getAllTransactions: Lấy được', result.length, 'transactions');
+        callback(result);
     };
+    
     request.onerror = function(e) {
-        console.error("Lỗi đọc transactions:", e.target.error);
+        console.error('❌ getAllTransactions: Lỗi đọc', e.target.error);
         callback([]);
     };
 } // end function getAllTransactions
 
+// =========================================================================
+// ĐỒNG BỘ GIAO DỊCH LÊN GOOGLE SHEET
+// =========================================================================
 function syncToGoogleSheets() {
-    if (!navigator.onLine || isSyncing || !CONFIG.apiEndpoint) return;
+    console.log('🔍 syncToGoogleSheets - Bắt đầu');
+    
+    // Kiểm tra điều kiện
+    if (!navigator.onLine) {
+        console.log('❌ Offline - không thể sync');
+        return;
+    }
+    
+    if (isSyncing) {
+        console.log('⏳ Đang sync, bỏ qua');
+        return;
+    }
+    
+    if (!CONFIG.apiEndpoint) {
+        console.log('❌ Không có API endpoint');
+        return;
+    }
 
-    getAllTransactions(transactions => {
+    if (!db) {
+        console.log('❌ Chưa có database');
+        return;
+    }
+
+    // Lấy tất cả transactions từ IndexedDB
+    const tx = db.transaction("transactions", "readonly");
+    const store = tx.objectStore("transactions");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
+        const transactions = e.target.result || [];
+        console.log('📊 Tổng transactions trong IndexedDB:', transactions.length);
+        
+        // Lọc những transaction chưa sync
         const unsynced = transactions.filter(t => t.synced === 0);
-        if (unsynced.length === 0) return;
+        console.log('📊 Số transactions chưa sync:', unsynced.length);
+        
+        if (unsynced.length === 0) {
+            console.log('📭 Không có giao dịch chưa sync');
+            return;
+        }
+
+        // Log chi tiết dữ liệu sẽ gửi
+        console.log('📤 Dữ liệu gửi lên:', JSON.stringify(unsynced, null, 2));
 
         isSyncing = true;
+        
+        // Gửi lên Google Apps Script
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
             body: JSON.stringify({
                 action: 'syncTransactions',
                 data: unsynced.map(t => ({
@@ -618,28 +736,55 @@ function syncToGoogleSheets() {
                     type: t.type,
                     subtype: t.subtype,
                     amount: t.amount,
-                    note: t.note
+                    note: t.note || ''
                 }))
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            console.log('📥 Response status:', res.status);
+            return res.json();
+        })
         .then(resData => {
+            console.log('📥 Response từ server:', resData);
+            
             if (resData.status === "success") {
-                const tx = db.transaction("transactions", "readwrite");
-                const store = tx.objectStore("transactions");
+                console.log('✅ Sync thành công! Số giao dịch đã sync:', resData.count || unsynced.length);
+                
+                // Cập nhật trạng thái synced = 1 trong IndexedDB
+                const tx2 = db.transaction("transactions", "readwrite");
+                const store2 = tx2.objectStore("transactions");
+                
                 unsynced.forEach(t => {
                     t.synced = 1;
-                    store.put(t);
+                    store2.put(t);
                 });
-                renderChartsAndStats();
+                
+                tx2.oncomplete = function() {
+                    console.log('✅ Đã cập nhật trạng thái synced trong IndexedDB');
+                    renderChartsAndStats();
+                };
+                
+                tx2.onerror = function(e) {
+                    console.error('❌ Lỗi cập nhật trạng thái synced:', e.target.error);
+                };
+            } else {
+                console.log('❌ Sync thất bại:', resData.message);
             }
+            
             isSyncing = false;
         })
-        .catch(() => {
+        .catch(err => {
+            console.error('❌ Lỗi fetch:', err);
             isSyncing = false;
         });
-    });
+    };
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi đọc IndexedDB:', e.target.error);
+        isSyncing = false;
+    };
 } // end function syncToGoogleSheets
+
 // end XỬ LÝ GIAO DỊCH (TRANSACTIONS)
 
 // =========================================================================
