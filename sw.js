@@ -4,12 +4,12 @@
 
 const CACHE_NAME = 'toi-app-v1';
 const ASSETS = [
-    '/',
-    '/index.html',
-    '/styles.css',
-    '/script.js',
-    '/manifest.json',
-    '/icon.png'
+    '/Tui/',
+    '/Tui/index.html',
+    '/Tui/styles.css',
+    '/Tui/script.js',
+    '/Tui/manifest.json',
+    '/Tui/icon.png'
 ];
 
 // Cài đặt Service Worker
@@ -54,8 +54,8 @@ self.addEventListener('push', event => {
     const title = data.title || 'TÔI - Nhắc hẹn';
     const options = {
         body: data.body || 'Bạn có lịch hẹn sắp tới!',
-        icon: '/icon.png',
-        badge: '/icon.png',
+        icon: '/Tui/icon.png',
+        badge: '/Tui/icon.png',
         vibrate: [200, 100, 200]
     };
     event.waitUntil(
@@ -67,7 +67,7 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
     event.notification.close();
     event.waitUntil(
-        clients.openWindow('/')
+        clients.openWindow('/Tui/')
     );
 }); // end event notificationclick
 
@@ -77,7 +77,7 @@ self.addEventListener('message', event => {
         const { title, body, icon } = event.data;
         self.registration.showNotification(title, {
             body: body,
-            icon: icon || '/icon.png',
+            icon: icon || '/Tui/icon.png',
             vibrate: [200, 100, 200]
         });
     }

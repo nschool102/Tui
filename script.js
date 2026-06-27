@@ -34,7 +34,7 @@ function requestNotificationPermission() {
 
 function registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/Tui/sw.js')
             .then(reg => {
                 console.log('Service Worker đăng ký thành công:', reg);
             })
@@ -89,7 +89,8 @@ function triggerPushNotification(title, body) {
 // =========================================================================
 async function loadAppInfoFromManifest() {
     try {
-        const response = await fetch('/manifest.json');
+        // SỬA: thêm BASE_PATH
+        const response = await fetch('/Tui/manifest.json');
         if (!response.ok) {
             throw new Error('Không tìm thấy manifest.json');
         }
