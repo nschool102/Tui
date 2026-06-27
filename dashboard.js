@@ -1,96 +1,4 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ứng dụng Thu Chi</title>
-    
-    <!-- Thư viện bên ngoài -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap"></script>
-    
-    <!-- CSS của Dashboard -->
-    <link rel="stylesheet" href="dashboard.css">
-    
-    <style>
-        /* Style cho trang chính */
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #f0f4f8;
-            padding: 20px;
-        }
-        .app-header {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
-        .btn-open-dashboard {
-            padding: 14px 32px;
-            background: #0b1e33;
-            color: white;
-            border: none;
-            border-radius: 40px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            transition: 0.2s;
-        }
-        .btn-open-dashboard:hover {
-            background: #1f3348;
-            transform: scale(1.02);
-        }
-        .info-text {
-            margin-top: 12px;
-            color: #64748b;
-            font-size: 14px;
-        }
-        .badge {
-            display: inline-block;
-            background: #dcfce7;
-            color: #166534;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-    </style>
-</head>
-<body>
-    <div class="app-header">
-        <h1 style="display:flex; align-items:center; gap:12px;">
-            <i class="fas fa-wallet" style="color:#2a7de1;"></i>
-            Ứng dụng Quản lý Thu Chi
-            <span class="badge">v2.0</span>
-        </h1>
-        <p style="color:#475569; margin: 8px 0 16px;">Quản lý giao dịch và xem báo cáo chi tiết</p>
-        
-        <button class="btn-open-dashboard" onclick="openDashboard()">
-            <i class="fas fa-chart-pie"></i> Mở Dashboard
-        </button>
-        <div class="info-text">
-            <i class="fas fa-info-circle"></i> 
-            Dữ liệu được lấy từ sheet <strong>TRANSACTIONS</strong> 
-            (cấu hình trong <code>config.js</code>)
-        </div>
-    </div>
-
-    <!-- Include Dashboard HTML -->
-    <div id="dashboard-container">
-        <!-- Nội dung từ dashboard.html sẽ được include ở đây -->
-    </div>
-
-    <!-- Scripts -->
-    <script src="config.js"></script>
-    <script src="dashboard.js"></script>
-</body>
-</html>// /Tui/dashboard.js
+// /Tui/dashboard.js
 // ============================================================
 // DASHBOARD - Sử dụng config từ config.js
 // ============================================================
@@ -120,7 +28,7 @@ function loadDataFromSheet() {
                 .withFailureHandler(function(error) {
                     reject(error);
                 })
-                .getTransactions(); // Hàm này được định nghĩa trong dashboard.gs
+                .getTransactions();
         } else {
             // Fallback: Lấy từ localStorage (PWA / local)
             try {
@@ -129,7 +37,6 @@ function loadDataFromSheet() {
                     const data = JSON.parse(stored);
                     resolve(data);
                 } else {
-                    // Nếu không có dữ liệu, tạo dữ liệu mẫu từ CATEGORIES
                     const sampleData = generateSampleData();
                     localStorage.setItem('TRANSACTIONS', JSON.stringify(sampleData));
                     resolve(sampleData);
@@ -142,7 +49,7 @@ function loadDataFromSheet() {
 }
 
 // ============================================================
-// TẠO DỮ LIỆU MẪU TỪ CATEGORIES (Sử dụng config)
+// TẠO DỮ LIỆU MẪU TỪ CATEGORIES
 // ============================================================
 function generateSampleData() {
     const data = [];
@@ -221,7 +128,6 @@ function applyFilters() {
     
     let filtered = [...allTransactions];
     
-    // Filter by period
     if (period !== 'all') {
         const range = getDateRange(period);
         if (range) {
@@ -232,7 +138,6 @@ function applyFilters() {
         }
     }
     
-    // Filter by custom date
     if (dateFrom) {
         const from = new Date(dateFrom);
         from.setHours(0,0,0,0);
@@ -244,7 +149,6 @@ function applyFilters() {
         filtered = filtered.filter(t => new Date(t.timestamp) <= to);
     }
     
-    // Filter by type
     if (typeFilter !== 'all') {
         filtered = filtered.filter(t => {
             const type = t.amount >= 0 ? 'thu' : 'chi';
@@ -293,7 +197,6 @@ function processData(transactions) {
     const ratio = totalIncome > 0 ? (totalExpense / totalIncome * 100) : 0;
     const transactionCount = transactions.length;
 
-    // Group by category
     const incomeByCategory = {};
     const expenseByCategory = {};
     
@@ -305,7 +208,6 @@ function processData(transactions) {
         expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Math.abs(t.amount);
     });
 
-    // Chi tiết theo category + subcategory
     const detailMap = {};
     transactions.forEach(t => {
         const key = `${t.category}|${t.subcategory}`;
@@ -323,7 +225,6 @@ function processData(transactions) {
     });
     const details = Object.values(detailMap).sort((a, b) => b.total - a.total);
 
-    // Monthly trend
     const months = {};
     [...income, ...expense].forEach(t => {
         const m = t.timestamp.substring(0, 7);
@@ -338,7 +239,6 @@ function processData(transactions) {
         expense: months[m].expense
     }));
 
-    // Treemap data
     const treemapData = details.map(d => ({
         category: d.category,
         subcategory: d.subcategory,
@@ -359,7 +259,6 @@ function renderDashboard() {
     const container = document.getElementById('dashboardContent');
     const data = processData(filteredTransactions);
     
-    // Kiểm tra nếu không có dữ liệu
     if (filteredTransactions.length === 0) {
         container.innerHTML = `
             <div class="card card-full">
@@ -373,9 +272,7 @@ function renderDashboard() {
         return;
     }
     
-    // Build HTML
     container.innerHTML = `
-        <!-- KPI -->
         <div class="kpi-grid">
             <div class="kpi-item">
                 <div class="label">Tổng thu</div>
@@ -399,31 +296,26 @@ function renderDashboard() {
             </div>
         </div>
 
-        <!-- Biểu đồ 1: Thu theo nhóm -->
         <div class="card card-third">
             <h3><i class="fas fa-arrow-up" style="color:#22c55e;"></i> Thu theo nhóm</h3>
             <div class="chart-container"><canvas id="incomeChart"></canvas></div>
         </div>
 
-        <!-- Biểu đồ 2: Chi theo nhóm -->
         <div class="card card-third">
             <h3><i class="fas fa-arrow-down" style="color:#ef4444;"></i> Chi theo nhóm</h3>
             <div class="chart-container"><canvas id="expenseChart"></canvas></div>
         </div>
 
-        <!-- Biểu đồ 3: Treemap -->
         <div class="card card-third">
             <h3><i class="fas fa-diagram-project"></i> Treemap - Chi tiết danh mục</h3>
             <div class="chart-container treemap"><canvas id="treemapChart"></canvas></div>
         </div>
 
-        <!-- Biểu đồ 4: Xu hướng -->
         <div class="card card-half">
             <h3><i class="fas fa-chart-line"></i> Xu hướng Thu - Chi theo tháng</h3>
             <div class="chart-container tall"><canvas id="trendChart"></canvas></div>
         </div>
 
-        <!-- Bảng phân tích chi tiết -->
         <div class="card card-half">
             <h3><i class="fas fa-table"></i> Phân tích chi tiết theo nhóm</h3>
             <div class="detail-table-wrap" id="detailTableWrap">
@@ -441,7 +333,6 @@ function renderDashboard() {
             </div>
         </div>
 
-        <!-- Giao dịch gần đây -->
         <div class="card card-full">
             <h3><i class="fas fa-history"></i> Giao dịch gần đây</h3>
             <div class="detail-table-wrap">
@@ -460,7 +351,6 @@ function renderDashboard() {
         </div>
     `;
 
-    // Render charts after DOM update
     setTimeout(() => {
         renderCharts(data);
         renderDetailTable(data);
@@ -469,10 +359,9 @@ function renderDashboard() {
 }
 
 // ============================================================
-// RENDER CHARTS (Sử dụng CHART_COLORS từ config)
+// RENDER CHARTS
 // ============================================================
 function renderCharts(data) {
-    // Destroy old charts
     Object.values(chartInstances).forEach(c => { 
         if (c) { 
             try { c.destroy(); } catch(e) {} 
@@ -480,7 +369,6 @@ function renderCharts(data) {
     });
     chartInstances = {};
 
-    // 1. Income Chart
     const ctx1 = document.getElementById('incomeChart')?.getContext('2d');
     if (ctx1 && Object.keys(data.incomeByCategory).length > 0) {
         chartInstances.income = new Chart(ctx1, {
@@ -503,7 +391,6 @@ function renderCharts(data) {
         });
     }
 
-    // 2. Expense Chart
     const ctx2 = document.getElementById('expenseChart')?.getContext('2d');
     if (ctx2 && Object.keys(data.expenseByCategory).length > 0) {
         chartInstances.expense = new Chart(ctx2, {
@@ -526,7 +413,6 @@ function renderCharts(data) {
         });
     }
 
-    // 3. Treemap Chart
     const ctx3 = document.getElementById('treemapChart')?.getContext('2d');
     if (ctx3 && data.treemapData.length > 0 && typeof ChartTreemap !== 'undefined') {
         const treeData = data.treemapData.map(d => ({
@@ -576,7 +462,6 @@ function renderCharts(data) {
         });
     }
 
-    // 4. Trend Chart
     const ctx4 = document.getElementById('trendChart')?.getContext('2d');
     if (ctx4 && data.trendData.length > 0) {
         chartInstances.trend = new Chart(ctx4, {
@@ -684,18 +569,14 @@ async function openDashboard() {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     
-    // Hiển thị loading
     loading.classList.remove('hidden');
     document.getElementById('dashboardContent').innerHTML = '';
     
     try {
-        // Load dữ liệu từ sheet
         const data = await loadDataFromSheet();
         allTransactions = data;
         filteredTransactions = [...allTransactions];
         isDataLoaded = true;
-        
-        // Render dashboard
         renderDashboard();
     } catch (error) {
         console.error('Lỗi tải dữ liệu:', error);
@@ -721,7 +602,6 @@ function closeDashboard() {
     modal.classList.remove('active');
     document.body.style.overflow = '';
     
-    // Destroy charts để giải phóng bộ nhớ
     Object.values(chartInstances).forEach(c => { 
         if (c) { 
             try { c.destroy(); } catch(e) {} 
@@ -748,10 +628,9 @@ async function refreshData() {
 }
 
 // ============================================================
-// KHỞI TẠO - Thêm sự kiện
+// KHỞI TẠO
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Đóng modal khi click overlay
     const modal = document.getElementById('dashboardModal');
     if (modal) {
         modal.addEventListener('click', function(e) {
@@ -759,7 +638,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Phím ESC để đóng modal
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             const modal = document.getElementById('dashboardModal');
@@ -770,4 +648,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-console.log('Dashboard loaded! Using config from config.js');
+console.log('Dashboard loaded!');
