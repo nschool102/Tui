@@ -47,6 +47,51 @@ function formatDateOnly(d) {
     return `${year}-${month}-${day}`;
 } // end function formatDateOnly
 
+// Chuẩn hóa timestamp để so sánh dedup an toàn:
+// - cắt bỏ giây nếu có (giữ tới phút: yyyy-mm-dd hh:mm)
+// - trim khoảng trắng, bỏ ký tự T/Z nếu sót lại từ ISO string
+function normalizeTimestampForCompare(ts) {
+    if (!ts) return '';
+    let s = String(ts).trim();
+    s = s.replace('T', ' ').replace('Z', '');
+    // Cắt giây nếu có dạng yyyy-mm-dd hh:mm:ss(.xxx)
+    const match = s.match(/^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2})/);
+    return match ? match[1] : s;
+} // end function normalizeTimestampForCompare
+
+// Chuyển bất kỳ giá trị ngày (ISO string "2025-04-22T17:00:00.000Z",
+// "yyyy-mm-dd hh:mm", hoặc "yyyy-mm-dd") thành định dạng hiển thị dd-mm-yyyy.
+// Trả về chuỗi gốc nếu không nhận diện được (để không làm mất dữ liệu khi hiển thị).
+function formatDisplayDateDMY(value) {
+    if (!value || value === "-") return value || "-";
+    const str = String(value).trim();
+
+    // Dạng yyyy-mm-dd hoặc yyyy-mm-ddThh:mm:ss... (ISO) hoặc yyyy-mm-dd hh:mm
+    const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+        const [, year, month, day] = isoMatch;
+        return `${day}-${month}-${year}`;
+    }
+
+    // Dạng dd/mm/yyyy đã có sẵn (ví dụ dữ liệu cũ) -> chuyển dấu / thành -
+    const slashMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (slashMatch) {
+        const [, day, month, year] = slashMatch;
+        return `${day}-${month}-${year}`;
+    }
+
+    // Fallback: thử parse bằng Date(), nếu hợp lệ thì format lại
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}-${month}-${year}`;
+    }
+
+    return str;
+} // end function formatDisplayDateDMY
+
 // =========================================================================
 // HÀM CHUYỂN ĐỔI SENTENCE CASE
 // =========================================================================
@@ -1239,23 +1284,22 @@ function showFamilyModal(m) {
     const fields = [
         { l: "Biệt danh", v: m.nickname || "-" },
         { l: "Họ tên", v: m.fullname || "-" },
-        { l: "Ngày sinh", v: m.dob || "-" },
+        { l: "Ngày sinh", v: formatDisplayDateDMY(m.dob) },
         { l: "Nơi sinh", v: m.noisinh || "-" },
         { l: "Địa chỉ", v: m.diachi || "-" },
-        { l: "Điện thoại", v: m.dienthoai || "-" },
         { l: "CCCD: Số", v: m.cccd?.so || "-" },
-        { l: "CCCD: Ngày cấp", v: m.cccd?.ngaycap || "-" },
-        { l: "CCCD: Ngày hết hạn", v: m.cccd?.ngayhethan || "-" },
+        { l: "CCCD: Ngày cấp", v: formatDisplayDateDMY(m.cccd?.ngaycap) },
+        { l: "CCCD: Ngày hết hạn", v: formatDisplayDateDMY(m.cccd?.ngayhethan) },
         { l: "CCCD: Nơi cấp", v: m.cccd?.noicap || "-" },
         { l: "Hộ chiếu: Số", v: m.hochieu?.so || "-" },
-        { l: "Hộ chiếu: Ngày cấp", v: m.hochieu?.ngaycap || "-" },
-        { l: "Hộ chiếu: Ngày hết hạn", v: m.hochieu?.ngayhethan || "-" },
+        { l: "Hộ chiếu: Ngày cấp", v: formatDisplayDateDMY(m.hochieu?.ngaycap) },
+        { l: "Hộ chiếu: Ngày hết hạn", v: formatDisplayDateDMY(m.hochieu?.ngayhethan) },
         { l: "Hộ chiếu: Nơi cấp", v: m.hochieu?.noicap || "-" },
         { l: "Thẻ BHYT", v: m.bhyt || "-" },
         { l: "Mã số BHXH", v: m.bhxh || "-" },
         { l: "Mã số thuế", v: m.masothue || "-" },
         { l: "LLTP: Số", v: m.lltp?.so || "-" },
-        { l: "LLTP: Ngày cấp", v: m.lltp?.ngaycap || "-" },
+        { l: "LLTP: Ngày cấp", v: formatDisplayDateDMY(m.lltp?.ngaycap) },
         { l: "LLTP: Nơi cấp", v: m.lltp?.noicap || "-" }
     ];
 
@@ -1535,13 +1579,7 @@ function renderRemindersList(list) {
         let freqText = formatFrequencyLabel(r);
 
         let displayDateSource = r.nextReminderDate || r.startDate;
-        let displayDate = displayDateSource;
-        if (displayDateSource) {
-            let parts = displayDateSource.split("-");
-            if (parts.length === 3) {
-                displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-        }
+        let displayDate = formatDisplayDateDMY(displayDateSource);
 
         let statusColor = r.status === "ENABLED" ? "var(--success-color)" : "var(--danger-color)";
         let statusText = r.status === "ENABLED" ? "✅ Hoạt động" : "⛔ Tắt";
@@ -1926,7 +1964,7 @@ function syncAllDataFromSheet() {
                             const store = tx.objectStore("transactions");
                             serverTransactions.forEach(sTx => {
                                 const isDuplicate = localTransactions.some(lTx =>
-                                    lTx.timestamp === sTx.timestamp &&
+                                    normalizeTimestampForCompare(lTx.timestamp) === normalizeTimestampForCompare(sTx.timestamp) &&
                                     parseFloat(lTx.amount) === parseFloat(sTx.amount) &&
                                     lTx.subtype === sTx.subtype
                                 );
@@ -1947,7 +1985,7 @@ function syncAllDataFromSheet() {
 
                                 serverReminders.forEach(sRem => {
                                     const isDuplicate = existingList.some(lRem =>
-                                        lRem.startDate === sRem.startDate &&
+                                        normalizeTimestampForCompare(lRem.startDate) === normalizeTimestampForCompare(sRem.startDate) &&
                                         lRem.content === sRem.content
                                     );
                                     if (!isDuplicate) {
