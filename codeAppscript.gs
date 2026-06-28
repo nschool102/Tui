@@ -563,7 +563,7 @@ function readFamilySheetData(ss) {
     return family;
   }
   
-  var rows = sheet.getRange("A4:S").getValues();
+  var rows = sheet.getRange("A4:T").getValues();
   Logger.log("📖 readFamilySheetData: Số dòng: " + rows.length);
   
   for (var i = 0; i < rows.length; i++) {
