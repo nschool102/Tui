@@ -1281,13 +1281,19 @@ function renderFamilyGrid(members) {
 } // end function renderFamilyGrid
 
 function showFamilyModal(m) {
+    // Chuẩn hóa số điện thoại cho link tel: (chỉ giữ số và dấu +)
+    const sanitizePhoneForTel = (val) => {
+        if (!val || val === "-") return "";
+        return String(val).replace(/[^\d+]/g, "");
+    };
+
     const fields = [
         { l: "Biệt danh", v: m.nickname || "-" },
         { l: "Họ tên", v: m.fullname || "-" },
         { l: "Ngày sinh", v: formatDisplayDateDMY(m.dob) },
         { l: "Nơi sinh", v: m.noisinh || "-" },
         { l: "Địa chỉ", v: m.diachi || "-" },
-        { l: "Điện thoại", v: m.dienthoai || "-" },
+        { l: "Điện thoại", v: m.dienthoai || "-", isPhone: true },
         { l: "CCCD: Số", v: m.cccd?.so || "-" },
         { l: "CCCD: Ngày cấp", v: formatDisplayDateDMY(m.cccd?.ngaycap) },
         { l: "CCCD: Ngày hết hạn", v: formatDisplayDateDMY(m.cccd?.ngayhethan) },
@@ -1337,11 +1343,26 @@ function showFamilyModal(m) {
 
         let row = document.createElement("div");
         row.className = "info-row";
+
+        const telNumber = f.isPhone ? sanitizePhoneForTel(f.v) : "";
+        const callBtnHtml = telNumber
+            ? `<a href="tel:${telNumber}" class="btn-call-phone" title="Gọi ${f.v}" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;margin-left:8px;border-radius:50%;background:var(--theme-color);color:#000;text-decoration:none;font-size:0.9rem;vertical-align:middle;">📞</a>`
+            : "";
+
         if (currentGroup) {
-            row.innerHTML = `<div class="info-label" style="padding-left:15px; font-size:0.9rem;">- ${cleanLabel}</div><div class="info-value" style="padding-left:25px; font-weight:500;">${f.v}</div>`;
+            row.innerHTML = `<div class="info-label" style="padding-left:15px; font-size:0.9rem;">- ${cleanLabel}</div><div class="info-value" style="padding-left:25px; font-weight:500;">${f.v}${callBtnHtml}</div>`;
         } else {
             if (!currentGroup) lastGroup = "";
-            row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}</div>`;
+            row.innerHTML = `<div class="info-label">${f.l}</div><div class="info-value">${f.v}${callBtnHtml}</div>`;
+        }
+
+        if (telNumber) {
+            const callBtn = row.querySelector(".btn-call-phone");
+            if (callBtn) {
+                callBtn.onclick = (e) => {
+                    e.stopPropagation();
+                };
+            }
         }
 
         row.onclick = () => {
