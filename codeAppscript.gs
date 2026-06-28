@@ -1,37 +1,36 @@
-// sửa dữ liệu cũ bị sai định dạng ngày tháng
+// sửa dữ liệu cũ bị sai định dạng ngày tháng (chạy 1 lần để dọn dữ liệu cũ bị Sheets tự convert thành Date)
 function fixTimestampFormat() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("TRANSACTIONS");
+  fixDateColumnToText_("TRANSACTIONS", "A");
+  fixDateColumnToText_("REMINDERS", "C");
+  fixDateColumnToText_("REMINDERS", "E");
+  fixDateColumnToText_("REMINDERS", "F");
+}
+
+function fixDateColumnToText_(sheetName, columnLetter) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   if (!sheet) {
-    Logger.log("❌ Không tìm thấy sheet");
+    Logger.log("❌ Không tìm thấy sheet " + sheetName);
     return;
   }
-  
+
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return;
-  
-  var range = sheet.getRange("A2:A" + lastRow);
+
+  var range = sheet.getRange(columnLetter + "2:" + columnLetter + lastRow);
   var values = range.getValues();
-  
-  var newValues = [];
-  values.forEach(function(row) {
+
+  var newValues = values.map(function(row) {
     var val = row[0];
     if (val instanceof Date) {
-      // Chuyển Date thành định dạng yyyy-mm-dd hh:mm:ss
-      var d = new Date(val);
-      var year = d.getFullYear();
-      var month = String(d.getMonth() + 1).padStart(2, '0');
-      var day = String(d.getDate()).padStart(2, '0');
-      var hours = String(d.getHours()).padStart(2, '0');
-      var minutes = String(d.getMinutes()).padStart(2, '0');
-      newValues.push([year + '-' + month + '-' + day + ' ' + hours + ':' + minutes]);
-    } else {
-      // Giữ nguyên nếu đã đúng định dạng
-      newValues.push([val]);
+      return [formatVietnamDateTime(val)];
     }
+    return [val];
   });
-  
+
+  // Ép cả cột thành Plain Text TRƯỚC khi set, để Sheets không convert lại thành Date
+  range.setNumberFormat("@STRING@");
   range.setValues(newValues);
-  Logger.log("✅ Đã sửa " + newValues.length + " dòng");
+  Logger.log("✅ " + sheetName + " [" + columnLetter + "]: Đã sửa " + newValues.length + " dòng");
 }
 
 function testWriteDirect() {
@@ -101,7 +100,7 @@ function formatVietnamDateTime(dateInput) {
   var hours = String(vietnamTime.getHours()).padStart(2, '0');
   var minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
   
-  var result = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+  var result = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes;
   Logger.log("✅ formatVietnamDateTime: " + dateInput + " → " + result);
   return result;
 } // end function formatVietnamDateTime
@@ -277,7 +276,11 @@ function saveTransactionAction(ss, params) {
   
   Logger.log("💾 Dữ liệu ghi: " + JSON.stringify({ formattedDate, type, subtype, amount, note }));
   
-  sheet.appendRow([formattedDate, type, subtype, amount, note]);
+  var newRow = sheet.getLastRow() + 1;
+  // Ép cột TIMESTAMP (cột A) sang định dạng Plain Text TRƯỚC khi ghi giá trị,
+  // để Google Sheets không tự động convert chuỗi "yyyy-mm-dd hh:mm" thành kiểu Date
+  sheet.getRange(newRow, 1).setNumberFormat("@STRING@").setValue(formattedDate);
+  sheet.getRange(newRow, 2, 1, 4).setValues([[type, subtype, amount, note]]);
   
   Logger.log("✅ saveTransactionAction: Đã ghi thành công!");
   return { status: "success", message: "Đã ghi nhận giao dịch thành công!" };
@@ -302,8 +305,9 @@ function syncTransactionsAction(ss, params) {
     if (tx.timestamp && tx.type && tx.subtype && tx.amount !== undefined) {
       var row = lastRow + index + 1;
       
-      // Ghi từng cột với định dạng TEXT
-      sheet.getRange(row, 1).setValue(tx.timestamp || "");  // TIMESTAMP - giữ nguyên text
+      // Ép cột TIMESTAMP sang Plain Text TRƯỚC khi setValue,
+      // tránh Sheets tự convert chuỗi ngày giờ thành kiểu Date (gây lệch múi giờ/định dạng)
+      sheet.getRange(row, 1).setNumberFormat("@STRING@").setValue(tx.timestamp || "");
       sheet.getRange(row, 2).setValue(tx.type || "");
       sheet.getRange(row, 3).setValue(tx.subtype || "");
       sheet.getRange(row, 4).setValue(parseFloat(tx.amount) || 0);
@@ -340,7 +344,14 @@ function saveReminderAction(ss, params) {
   
   Logger.log("⏰ Dữ liệu ghi: " + JSON.stringify({ noiDungNhac, tanSuat, ngayBatDau, trangThai, ngayNhacTiepTheo, lanNhacCuoi }));
   
-  sheet.appendRow([noiDungNhac, tanSuat, ngayBatDau, trangThai, ngayNhacTiepTheo, lanNhacCuoi]);
+  var newRow = sheet.getLastRow() + 1;
+  sheet.getRange(newRow, 1).setValue(noiDungNhac);
+  sheet.getRange(newRow, 2).setValue(tanSuat);
+  // Cột ngày (C, E, F) ép Plain Text để Sheets không tự convert thành Date
+  sheet.getRange(newRow, 3).setNumberFormat("@STRING@").setValue(ngayBatDau);
+  sheet.getRange(newRow, 4).setValue(trangThai);
+  sheet.getRange(newRow, 5).setNumberFormat("@STRING@").setValue(ngayNhacTiepTheo);
+  sheet.getRange(newRow, 6).setNumberFormat("@STRING@").setValue(lanNhacCuoi);
   
   Logger.log("✅ saveReminderAction: Đã ghi thành công!");
   return { status: "success", message: "Đã thêm nhắc hẹn thành công!" };
@@ -372,14 +383,13 @@ function syncRemindersAction(ss, params) {
       var ngayNhacTiepTheo = rem.nextReminderDate ? formatVietnamDateTime(rem.nextReminderDate) : ngayBatDau;
       var lanNhacCuoi = rem.lastTriggeredAt ? formatVietnamDateTime(rem.lastTriggeredAt) : "";
       
-      sheet.appendRow([
-        rem.content || "",
-        rem.frequency || "ONCE",
-        ngayBatDau,
-        rem.status || "ENABLED",
-        ngayNhacTiepTheo,
-        lanNhacCuoi
-      ]);
+      var newRow = sheet.getLastRow() + 1;
+      sheet.getRange(newRow, 1).setValue(rem.content || "");
+      sheet.getRange(newRow, 2).setValue(rem.frequency || "ONCE");
+      sheet.getRange(newRow, 3).setNumberFormat("@STRING@").setValue(ngayBatDau);
+      sheet.getRange(newRow, 4).setValue(rem.status || "ENABLED");
+      sheet.getRange(newRow, 5).setNumberFormat("@STRING@").setValue(ngayNhacTiepTheo);
+      sheet.getRange(newRow, 6).setNumberFormat("@STRING@").setValue(lanNhacCuoi);
       count++;
       Logger.log("✅ Đã ghi reminder #" + index);
     } else {
@@ -576,25 +586,26 @@ function readFamilySheetData(ss) {
       dob: formatDate(rows[i][2]),
       noisinh: rows[i][3] || "-",
       diachi: rows[i][4] || "-",
+      dienthoai: rows[i][5] || "-",
       cccd: {
-        so: rows[i][5] || "-",
-        ngaycap: rows[i][6] || "-",
-        ngayhethan: rows[i][7] || "-",
-        noicap: rows[i][8] || "-"
+        so: rows[i][6] || "-",
+        ngaycap: rows[i][7] || "-",
+        ngayhethan: rows[i][8] || "-",
+        noicap: rows[i][9] || "-"
       },
       hochieu: {
-        so: rows[i][9] || "-",
-        ngaycap: rows[i][10] || "-",
-        ngayhethan: rows[i][11] || "-",
-        noicap: rows[i][12] || "-"
+        so: rows[i][10] || "-",
+        ngaycap: rows[i][11] || "-",
+        ngayhethan: rows[i][12] || "-",
+        noicap: rows[i][13] || "-"
       },
-      bhyt: rows[i][13] || "-",
-      bhxh: rows[i][14] || "-",
-      masothue: rows[i][15] || "-",
+      bhyt: rows[i][14] || "-",
+      bhxh: rows[i][15] || "-",
+      masothue: rows[i][16] || "-",
       lltp: {
-        so: rows[i][16] || "-",
-        ngaycap: formatDate(rows[i][17]),
-        noicap: rows[i][18] || "-"
+        so: rows[i][17] || "-",
+        ngaycap: formatDate(rows[i][18]),
+        noicap: rows[i][19] || "-"
       }
     });
   }
