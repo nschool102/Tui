@@ -1287,6 +1287,7 @@ function showFamilyModal(m) {
         { l: "Ngày sinh", v: formatDisplayDateDMY(m.dob) },
         { l: "Nơi sinh", v: m.noisinh || "-" },
         { l: "Địa chỉ", v: m.diachi || "-" },
+        { l: "Điện thoại", v: m.dienthoai || "-" },
         { l: "CCCD: Số", v: m.cccd?.so || "-" },
         { l: "CCCD: Ngày cấp", v: formatDisplayDateDMY(m.cccd?.ngaycap) },
         { l: "CCCD: Ngày hết hạn", v: formatDisplayDateDMY(m.cccd?.ngayhethan) },
