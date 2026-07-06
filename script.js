@@ -383,7 +383,6 @@ function initDB() {
         if (!db.objectStoreNames.contains("reminders")) {
             db.createObjectStore("reminders", { keyPath: "id", autoIncrement: true });
         }
-        // Thêm vào trong onupgradeneeded
         if (!db.objectStoreNames.contains("diary")) {
             db.createObjectStore("diary", { keyPath: "id", autoIncrement: true });
         }
@@ -420,9 +419,10 @@ function setupEventListeners() {
     document.getElementById("form-chi").addEventListener("submit", (e) => saveTransaction(e, 'chi'));
     document.getElementById("form-thu").addEventListener("submit", (e) => saveTransaction(e, 'thu'));
     
-    // Thêm vào trong setupEventListeners()
     document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
     setupDiaryPlaceToggle();
+
+    setupStatTimeEvents();
     
     document.getElementById("form-nhachen").addEventListener("submit", (e) => saveReminder(e));
 
@@ -533,8 +533,6 @@ function switchTab(tabName) {
     if (tabName === 'nhachen') {
         generateRemindersInterface();
     }
-
-    // Thêm vào trong switchTab()
     if (tabName === 'diary') {
         renderDiaryHistory();
         initDiaryDateTime();
@@ -559,40 +557,6 @@ function parseCurrency(str) {
 function formatVND(num) {
     return num.toLocaleString('en-US') + " đ";
 } // end function formatVND
-
-// =========================================================================
-// HÀM XỬ LÝ NGÀY THÁNG CHO VIỆT NAM (GMT+7)
-// =========================================================================
-
-// Format ngày theo định dạng yyyy-mm-dd hh:mm:ss (GMT+7)
-function formatVietnamDateTime(date) {
-    if (!date) return '';
-    
-    let d;
-    if (typeof date === 'string') {
-        d = new Date(date);
-    } else {
-        d = new Date(date);
-    }
-    
-    if (isNaN(d.getTime())) {
-        console.log('⚠️ formatVietnamDateTime: Invalid date');
-        return '';
-    }
-    
-    // Điều chỉnh về GMT+7
-    const offset = d.getTimezoneOffset();
-    const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
-    
-    const year = vietnamTime.getFullYear();
-    const month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
-    const day = String(vietnamTime.getDate()).padStart(2, '0');
-    const hours = String(vietnamTime.getHours()).padStart(2, '0');
-    const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
-    
-    // 👇👇👇 TRẢ VỀ ĐỊNH DẠNG NÀY 👇👇👇
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
-} // end function formatVietnamDateTime
 
 function updateSubtypes(mode) {
     const typeSelect = document.getElementById(`${mode}-type`);
@@ -626,7 +590,6 @@ function initFormOptions() {
         });
         updateSubtypes(mode);
 
-        // 👇👇👇 DÙNG GIỜ VIỆT NAM 👇👇👇
         const now = getVietnamNow();
         const dateInput = document.getElementById(`${mode}-date`);
         if (dateInput) {
@@ -640,7 +603,6 @@ function initFormOptions() {
     });
     initReminderDateOptions();
     initColorSettings();
-    // Thêm vào cuối initFormOptions()
     initDiaryDateTime();
 } // end function initFormOptions
 
@@ -722,12 +684,11 @@ function saveTransaction(event, mode) {
         date = new Date();
     }
     
-    // 👇👇👇 GỌI HÀM FORMAT ĐÚNG 👇👇👇
     const timestamp = formatVietnamDateTime(date);
     console.log('📅 Timestamp:', timestamp);
 
     const transaction = {
-        timestamp: timestamp,  // ← Đã là định dạng yyyy-mm-dd hh:mm:ss
+        timestamp: timestamp,
         type: type,
         subtype: subtype,
         amount: amount,
@@ -790,7 +751,6 @@ function getAllTransactions(callback) {
 function syncToGoogleSheets() {
     console.log('🔍 syncToGoogleSheets - Bắt đầu');
     
-    // Kiểm tra điều kiện
     if (!navigator.onLine) {
         console.log('❌ Offline - không thể sync');
         return;
@@ -811,7 +771,6 @@ function syncToGoogleSheets() {
         return;
     }
 
-    // Lấy tất cả transactions từ IndexedDB
     const tx = db.transaction("transactions", "readonly");
     const store = tx.objectStore("transactions");
     const request = store.getAll();
@@ -820,7 +779,6 @@ function syncToGoogleSheets() {
         const transactions = e.target.result || [];
         console.log('📊 Tổng transactions trong IndexedDB:', transactions.length);
         
-        // Lọc những transaction chưa sync
         const unsynced = transactions.filter(t => t.synced === 0);
         console.log('📊 Số transactions chưa sync:', unsynced.length);
         
@@ -829,12 +787,10 @@ function syncToGoogleSheets() {
             return;
         }
 
-        // Log chi tiết dữ liệu sẽ gửi
         console.log('📤 Dữ liệu gửi lên:', JSON.stringify(unsynced, null, 2));
 
         isSyncing = true;
         
-        // Gửi lên Google Apps Script
         fetch(CONFIG.apiEndpoint, {
             method: 'POST',
             headers: { 
@@ -861,7 +817,6 @@ function syncToGoogleSheets() {
             if (resData.status === "success") {
                 console.log('✅ Sync thành công! Số giao dịch đã sync:', resData.count || unsynced.length);
                 
-                // Cập nhật trạng thái synced = 1 trong IndexedDB
                 const tx2 = db.transaction("transactions", "readwrite");
                 const store2 = tx2.objectStore("transactions");
                 
@@ -895,7 +850,6 @@ function syncToGoogleSheets() {
         isSyncing = false;
     };
 } // end function syncToGoogleSheets
-
 // end XỬ LÝ GIAO DỊCH (TRANSACTIONS)
 
 // =========================================================================
@@ -1085,7 +1039,6 @@ function renderChartsAndStats() {
         renderPieChart('chart-chi-overview', ['Tổng Thu', 'Tổng Chi'], [totalThu, totalChi]);
         renderTopExpenses();
         
-        // Cập nhật tổng thu/chi trong tháng
         updateSummaryTotals();
     });
 } // end function renderChartsAndStats
@@ -1298,7 +1251,6 @@ function renderFamilyGrid(members) {
 } // end function renderFamilyGrid
 
 function showFamilyModal(m) {
-    // Chuẩn hóa số điện thoại cho link tel: (chỉ giữ số và dấu +)
     const sanitizePhoneForTel = (val) => {
         if (!val || val === "-") return "";
         return String(val).replace(/[^\d+]/g, "");
@@ -1705,13 +1657,6 @@ function checkAndTriggerReminders(reminders) {
     }
 } // end function checkAndTriggerReminders
 
-function formatDateOnly(d) {
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-} // end function formatDateOnly
-
 function updateReminderInDB(reminderItem) {
     if (!db || !reminderItem.id) return;
     const tx = db.transaction("reminders", "readwrite");
@@ -1843,7 +1788,6 @@ function decodeFrequencyFromSheet(rawFrequency) {
 // NHẬT KÍ - TAB DIARY
 // =========================================================================
 
-// Format datetime cho sheet: dd-mm-yyyy HH:mm:ss (24h)
 function formatDiaryDateTime(date) {
     if (!date) return '';
     
@@ -1859,7 +1803,6 @@ function formatDiaryDateTime(date) {
         return '';
     }
     
-    // Điều chỉnh về GMT+7
     const offset = d.getTimezoneOffset();
     const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
     
@@ -1873,7 +1816,6 @@ function formatDiaryDateTime(date) {
     return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
 } // end function formatDiaryDateTime
 
-// Lấy danh sách nhật kí từ IndexedDB
 function getDiaryEntries(callback) {
     if (!db) {
         console.log('❌ getDiaryEntries: Chưa có database');
@@ -1897,20 +1839,16 @@ function getDiaryEntries(callback) {
     };
 } // end function getDiaryEntries
 
-// Lưu nhật kí vào IndexedDB và sync lên sheet
-// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
     console.log('💾 saveDiaryEntry - Bắt đầu');
     
-    // Lấy giá trị từ form
     let datetimeVal = document.getElementById('diary-datetime').value;
     const placeSelect = document.getElementById('diary-place');
     const place = placeSelect.value;
-    let detail = document.getElementById('diary-detail').value.trim(); // Có thể để trống
+    let detail = document.getElementById('diary-detail').value.trim();
     
-    // Xử lý Custom place
     let finalPlace = place;
     if (place === 'Custom') {
         const customPlace = document.getElementById('diary-custom-place').value.trim();
@@ -1921,7 +1859,6 @@ function saveDiaryEntry(event) {
         finalPlace = customPlace;
     }
     
-    // Xử lý datetime
     let date;
     if (datetimeVal) {
         date = new Date(datetimeVal);
@@ -1929,20 +1866,13 @@ function saveDiaryEntry(event) {
         date = new Date();
     }
     
-    // Format datetime theo dd-mm-yyyy HH:mm:ss
     const formattedDateTime = formatDiaryDateTime(date);
     console.log('📅 Datetime:', formattedDateTime);
-    
-    // ❌ REMOVE THIS CHECK - Không cần kiểm tra detail nữa
-    // if (!detail) {
-    //     alert('Vui lòng nhập chi tiết nhật kí!');
-    //     return;
-    // }
     
     const diaryEntry = {
         datetime: formattedDateTime,
         place: finalPlace,
-        detail: detail || '', // Nếu null/undefined thì để chuỗi rỗng
+        detail: detail || '',
         synced: 0
     };
     
@@ -1967,7 +1897,6 @@ function saveDiaryEntry(event) {
     };
 } // end function saveDiaryEntry
 
-// Hiển thị lịch sử nhật kí
 function renderDiaryHistory() {
     const container = document.getElementById('diary-history-container');
     if (!container) return;
@@ -1978,10 +1907,7 @@ function renderDiaryHistory() {
             return;
         }
         
-        // Sắp xếp theo datetime mới nhất trước
         const sorted = [...entries].sort((a, b) => {
-            // So sánh chuỗi datetime dd-mm-yyyy HH:mm:ss
-            // Chuyển về dạng có thể so sánh: yyyy-mm-dd HH:mm:ss
             const aDate = a.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (a.datetime.split(' ')[1] || '');
             const bDate = b.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (b.datetime.split(' ')[1] || '');
             return bDate.localeCompare(aDate);
@@ -2009,7 +1935,6 @@ function renderDiaryHistory() {
     });
 } // end function renderDiaryHistory
 
-// Đồng bộ nhật kí lên Google Sheet
 function syncDiaryToSheet() {
     console.log('🔍 syncDiaryToSheet - Bắt đầu');
     
@@ -2091,7 +2016,6 @@ function syncDiaryToSheet() {
     };
 } // end function syncDiaryToSheet
 
-// Xử lý hiển thị Custom place field
 function setupDiaryPlaceToggle() {
     const placeSelect = document.getElementById('diary-place');
     const customGroup = document.getElementById('diary-custom-place-group');
@@ -2107,7 +2031,6 @@ function setupDiaryPlaceToggle() {
     }
 } // end function setupDiaryPlaceToggle
 
-// Khởi tạo datetime cho form diary
 function initDiaryDateTime() {
     const now = getVietnamNow();
     const datetimeInput = document.getElementById('diary-datetime');
@@ -2120,7 +2043,6 @@ function initDiaryDateTime() {
         datetimeInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
     }
 } // end function initDiaryDateTime
-
 // end NHẬT KÍ
 
 // =========================================================================
@@ -2174,7 +2096,6 @@ function loadTheme() {
 // =========================================================================
 // ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS
 // =========================================================================
-// ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS
 function syncAllDataFromSheet() {
     if (!navigator.onLine) {
         alert("Thiết bị đang ngoại tuyến! Vui lòng kết nối mạng để đồng bộ.");
@@ -2188,7 +2109,6 @@ function syncAllDataFromSheet() {
     syncBtn.style.opacity = "0.7";
 
     getAllTransactions(localTransactions => {
-        // PUSH TRANSACTIONS
         const pushTransactions = () => new Promise(resolve => {
             const unsyncedTx = localTransactions.filter(t => t.synced === 0);
             if (unsyncedTx.length === 0 || !CONFIG.apiEndpoint) {
@@ -2224,7 +2144,6 @@ function syncAllDataFromSheet() {
             .catch(() => resolve());
         });
 
-        // PUSH REMINDERS
         const pushReminders = () => new Promise(resolve => {
             const tx = db.transaction("reminders", "readonly");
             const store = tx.objectStore("reminders");
@@ -2268,7 +2187,6 @@ function syncAllDataFromSheet() {
             req.onerror = () => resolve();
         });
 
-        // 👇👇👇 THÊM PUSH DIARY 👇👇👇
         const pushDiary = () => new Promise(resolve => {
             if (!db) {
                 resolve();
@@ -2315,9 +2233,7 @@ function syncAllDataFromSheet() {
             };
             req.onerror = () => resolve();
         });
-        // 👆👆👆 KẾT THÚC PUSH DIARY 👆👆👆
 
-        // DOWNLOAD DATA
         const downloadData = () => {
             fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
                 .then(res => res.json())
@@ -2326,7 +2242,7 @@ function syncAllDataFromSheet() {
                         const serverFamily = resData.data.family || [];
                         const serverTransactions = resData.data.transactions || [];
                         const serverReminders = resData.data.reminders || [];
-                        const serverDiary = resData.data.diary || []; // 👈 THÊM DÒNG NÀY
+                        const serverDiary = resData.data.diary || [];
 
                         localFamilyData = serverFamily;
                         if (db) {
@@ -2335,7 +2251,6 @@ function syncAllDataFromSheet() {
                               .put({ key: "family_data", value: serverFamily });
                         }
 
-                        // Sync transactions từ server về
                         if (db && serverTransactions.length > 0) {
                             const tx = db.transaction("transactions", "readwrite");
                             const store = tx.objectStore("transactions");
@@ -2352,7 +2267,6 @@ function syncAllDataFromSheet() {
                             });
                         }
 
-                        // Sync reminders từ server về
                         if (db && serverReminders.length > 0) {
                             const tx = db.transaction("reminders", "readwrite");
                             const store = tx.objectStore("reminders");
@@ -2384,7 +2298,6 @@ function syncAllDataFromSheet() {
                             };
                         }
 
-                        // 👇👇👇 SYNC DIARY TỪ SERVER VỀ 👇👇👇
                         if (db && serverDiary.length > 0) {
                             const tx = db.transaction("diary", "readwrite");
                             const store = tx.objectStore("diary");
@@ -2395,7 +2308,6 @@ function syncAllDataFromSheet() {
                                 let addedCount = 0;
 
                                 serverDiary.forEach(sDiary => {
-                                    // Kiểm tra trùng lặp dựa trên datetime và place
                                     const isDuplicate = existingList.some(lDiary =>
                                         lDiary.datetime === sDiary.datetime &&
                                         lDiary.place === sDiary.place
@@ -2416,7 +2328,6 @@ function syncAllDataFromSheet() {
                                 }
                             };
                         }
-                        // 👆👆👆 KẾT THÚC SYNC DIARY 👆👆👆
 
                         updateLastSyncTime();
 
@@ -2446,15 +2357,13 @@ function syncAllDataFromSheet() {
                     initFormOptions();
                     renderChartsAndStats();
                     generateRemindersInterface();
-                    renderDiaryHistory(); // 👈 THÊM DÒNG NÀY
+                    renderDiaryHistory();
                     updateAppInfo();
                     updateSummaryTotals();
                 });
         };
 
-        // 👇👇👇 CẬP NHẬT Promise.all 👇👇👇
         Promise.all([pushTransactions(), pushReminders(), pushDiary()]).then(downloadData);
-        // 👆👆👆 THÊM pushDiary() VÀO Promise.all 👆👆👆
     });
 } // end function syncAllDataFromSheet
 // end ĐỒNG BỘ TOÀN DIỆN
@@ -2560,6 +2469,7 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+        renderDiaryHistory();
         updateSummaryTotals();
 
         initAppConfig().then(() => {
@@ -2573,6 +2483,7 @@ function loadInitialSettings() {
         initFormOptions();
         renderChartsAndStats();
         generateRemindersInterface();
+        renderDiaryHistory();
         updateSummaryTotals();
         initAppConfig().then(() => {
             updateAppInfo();
@@ -2592,5 +2503,6 @@ document.addEventListener("DOMContentLoaded", () => {
 window.addEventListener('online', () => {
     syncToGoogleSheets();
     syncRemindersToSheet();
+    syncDiaryToSheet();
 });
 // end KHỞI TẠO APP
