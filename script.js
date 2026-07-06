@@ -2174,6 +2174,7 @@ function loadTheme() {
 // =========================================================================
 // ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS
 // =========================================================================
+// ĐỒNG BỘ TOÀN DIỆN - TAB SETTINGS
 function syncAllDataFromSheet() {
     if (!navigator.onLine) {
         alert("Thiết bị đang ngoại tuyến! Vui lòng kết nối mạng để đồng bộ.");
@@ -2187,9 +2188,9 @@ function syncAllDataFromSheet() {
     syncBtn.style.opacity = "0.7";
 
     getAllTransactions(localTransactions => {
-        const unsyncedTx = localTransactions.filter(t => t.synced === 0);
-
+        // PUSH TRANSACTIONS
         const pushTransactions = () => new Promise(resolve => {
+            const unsyncedTx = localTransactions.filter(t => t.synced === 0);
             if (unsyncedTx.length === 0 || !CONFIG.apiEndpoint) {
                 resolve();
                 return;
@@ -2223,6 +2224,7 @@ function syncAllDataFromSheet() {
             .catch(() => resolve());
         });
 
+        // PUSH REMINDERS
         const pushReminders = () => new Promise(resolve => {
             const tx = db.transaction("reminders", "readonly");
             const store = tx.objectStore("reminders");
@@ -2266,6 +2268,56 @@ function syncAllDataFromSheet() {
             req.onerror = () => resolve();
         });
 
+        // 👇👇👇 THÊM PUSH DIARY 👇👇👇
+        const pushDiary = () => new Promise(resolve => {
+            if (!db) {
+                resolve();
+                return;
+            }
+            const tx = db.transaction("diary", "readonly");
+            const store = tx.objectStore("diary");
+            const req = store.getAll();
+            req.onsuccess = function(e) {
+                const list = e.target.result || [];
+                const unsyncedDiary = list.filter(r => r.synced === 0);
+                console.log('📊 Số diary chưa sync:', unsyncedDiary.length);
+                
+                if (unsyncedDiary.length === 0 || !CONFIG.apiEndpoint) {
+                    resolve();
+                    return;
+                }
+                fetch(CONFIG.apiEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'syncDiary',
+                        data: unsyncedDiary.map(r => ({
+                            datetime: r.datetime || "",
+                            place: r.place || "",
+                            detail: r.detail || ""
+                        }))
+                    })
+                })
+                .then(res => res.json())
+                .then(resData => {
+                    if (resData.status === "success") {
+                        const tx2 = db.transaction("diary", "readwrite");
+                        const store2 = tx2.objectStore("diary");
+                        unsyncedDiary.forEach(r => {
+                            r.synced = 1;
+                            store2.put(r);
+                        });
+                        console.log('✅ Đã đánh dấu diary đã sync');
+                    }
+                    resolve();
+                })
+                .catch(() => resolve());
+            };
+            req.onerror = () => resolve();
+        });
+        // 👆👆👆 KẾT THÚC PUSH DIARY 👆👆👆
+
+        // DOWNLOAD DATA
         const downloadData = () => {
             fetch(`${CONFIG.apiEndpoint}?action=getAllAppData`)
                 .then(res => res.json())
@@ -2274,6 +2326,7 @@ function syncAllDataFromSheet() {
                         const serverFamily = resData.data.family || [];
                         const serverTransactions = resData.data.transactions || [];
                         const serverReminders = resData.data.reminders || [];
+                        const serverDiary = resData.data.diary || []; // 👈 THÊM DÒNG NÀY
 
                         localFamilyData = serverFamily;
                         if (db) {
@@ -2282,6 +2335,7 @@ function syncAllDataFromSheet() {
                               .put({ key: "family_data", value: serverFamily });
                         }
 
+                        // Sync transactions từ server về
                         if (db && serverTransactions.length > 0) {
                             const tx = db.transaction("transactions", "readwrite");
                             const store = tx.objectStore("transactions");
@@ -2298,6 +2352,7 @@ function syncAllDataFromSheet() {
                             });
                         }
 
+                        // Sync reminders từ server về
                         if (db && serverReminders.length > 0) {
                             const tx = db.transaction("reminders", "readwrite");
                             const store = tx.objectStore("reminders");
@@ -2329,6 +2384,40 @@ function syncAllDataFromSheet() {
                             };
                         }
 
+                        // 👇👇👇 SYNC DIARY TỪ SERVER VỀ 👇👇👇
+                        if (db && serverDiary.length > 0) {
+                            const tx = db.transaction("diary", "readwrite");
+                            const store = tx.objectStore("diary");
+
+                            const getExisting = store.getAll();
+                            getExisting.onsuccess = function(e) {
+                                const existingList = e.target.result || [];
+                                let addedCount = 0;
+
+                                serverDiary.forEach(sDiary => {
+                                    // Kiểm tra trùng lặp dựa trên datetime và place
+                                    const isDuplicate = existingList.some(lDiary =>
+                                        lDiary.datetime === sDiary.datetime &&
+                                        lDiary.place === sDiary.place
+                                    );
+                                    if (!isDuplicate) {
+                                        store.add({
+                                            datetime: sDiary.datetime,
+                                            place: sDiary.place,
+                                            detail: sDiary.detail || "",
+                                            synced: 1
+                                        });
+                                        addedCount++;
+                                    }
+                                });
+                                
+                                if (addedCount > 0) {
+                                    console.log('✅ Đã thêm ' + addedCount + ' diary entries từ server');
+                                }
+                            };
+                        }
+                        // 👆👆👆 KẾT THÚC SYNC DIARY 👆👆👆
+
                         updateLastSyncTime();
 
                         const now = new Date();
@@ -2357,12 +2446,15 @@ function syncAllDataFromSheet() {
                     initFormOptions();
                     renderChartsAndStats();
                     generateRemindersInterface();
+                    renderDiaryHistory(); // 👈 THÊM DÒNG NÀY
                     updateAppInfo();
                     updateSummaryTotals();
                 });
         };
 
-        Promise.all([pushTransactions(), pushReminders()]).then(downloadData);
+        // 👇👇👇 CẬP NHẬT Promise.all 👇👇👇
+        Promise.all([pushTransactions(), pushReminders(), pushDiary()]).then(downloadData);
+        // 👆👆👆 THÊM pushDiary() VÀO Promise.all 👆👆👆
     });
 } // end function syncAllDataFromSheet
 // end ĐỒNG BỘ TOÀN DIỆN
