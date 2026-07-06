@@ -1898,6 +1898,7 @@ function getDiaryEntries(callback) {
 } // end function getDiaryEntries
 
 // Lưu nhật kí vào IndexedDB và sync lên sheet
+// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
@@ -1907,7 +1908,7 @@ function saveDiaryEntry(event) {
     let datetimeVal = document.getElementById('diary-datetime').value;
     const placeSelect = document.getElementById('diary-place');
     const place = placeSelect.value;
-    let detail = document.getElementById('diary-detail').value.trim();
+    let detail = document.getElementById('diary-detail').value.trim(); // Có thể để trống
     
     // Xử lý Custom place
     let finalPlace = place;
@@ -1932,15 +1933,16 @@ function saveDiaryEntry(event) {
     const formattedDateTime = formatDiaryDateTime(date);
     console.log('📅 Datetime:', formattedDateTime);
     
-    if (!detail) {
-        alert('Vui lòng nhập chi tiết nhật kí!');
-        return;
-    }
+    // ❌ REMOVE THIS CHECK - Không cần kiểm tra detail nữa
+    // if (!detail) {
+    //     alert('Vui lòng nhập chi tiết nhật kí!');
+    //     return;
+    // }
     
     const diaryEntry = {
         datetime: formattedDateTime,
         place: finalPlace,
-        detail: detail,
+        detail: detail || '', // Nếu null/undefined thì để chuỗi rỗng
         synced: 0
     };
     
