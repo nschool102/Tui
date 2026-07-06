@@ -67,7 +67,8 @@ const SHEETS_CONFIG = {
   TRANSACTIONS: "TRANSACTIONS",
   REMINDERS: "REMINDERS",
   FAMILY: "FAMILY",
-  CONFIG_APP: "CONFIG_APP"
+  CONFIG_APP: "CONFIG_APP",
+  DIARY: "DIARY"  // Thêm dòng này
 };
 
 // =========================================================================
@@ -130,6 +131,11 @@ function doGet(e) {
       Logger.log("👨‍👩‍👧‍👦 Action: getFamilyData");
       responseData = getFamilyDataAction(ss);
     }
+    // Thêm vào doGet() nếu cần get dữ liệu diary
+    else if (action === "getDiaryData") {
+      Logger.log("📝 Action: getDiaryData");
+      responseData = getDiaryDataAction(ss);
+    }
     else {
       Logger.log("❌ Unknown action: " + action);
       responseData = { status: "error", message: "Hành động không hợp lệ: " + action };
@@ -187,6 +193,11 @@ function doPost(e) {
       Logger.log("🔑 Action: updatePassword");
       responseData = updatePasswordAction(ss, params);
     }
+    // Thêm vào doPost() trong phần xử lý action
+    else if (action === "syncDiary") {
+      Logger.log("📝 Action: syncDiary");
+      responseData = syncDiaryAction(ss, params);
+    }
     else {
       Logger.log("❌ Unknown action: " + action);
       responseData = { status: "error", message: "Hành động POST không hợp lệ: " + action };
@@ -207,6 +218,115 @@ function doPost(e) {
 // =========================================================================
 // 2. CÁC HÀM XỬ LÝ ĐỌC DỮ LIỆU (READ ACTIONS)
 // =========================================================================
+// Thêm hàm syncDiaryAction
+function syncDiaryAction(ss, params) {
+  Logger.log("📝 syncDiaryAction: Bắt đầu");
+  
+  var sheet = ss.getSheetByName(SHEETS_CONFIG.DIARY);
+  if (!sheet) {
+    Logger.log("❌ syncDiaryAction: Không tìm thấy sheet DIARY");
+    return { status: "error", message: "Không tìm thấy sheet DIARY" };
+  }
+  
+  var entries = params.data || [];
+  if (!Array.isArray(entries)) {
+    Logger.log("❌ syncDiaryAction: Dữ liệu không phải là array");
+    return { status: "error", message: "Dữ liệu không hợp lệ" };
+  }
+  
+  Logger.log("📝 syncDiaryAction: Số lượng entries: " + entries.length);
+  
+  var count = 0;
+  entries.forEach(function(entry, index) {
+    if (entry.datetime && entry.place) {
+      var newRow = sheet.getLastRow() + 1;
+      
+      // Cột A: DATETIME - ép Plain Text để giữ định dạng dd-mm-yyyy HH:mm:ss
+      sheet.getRange(newRow, 1).setNumberFormat("@STRING@").setValue(entry.datetime || "");
+      // Cột B: PLACE
+      sheet.getRange(newRow, 2).setValue(entry.place || "");
+      // Cột C: DETAIL
+      sheet.getRange(newRow, 3).setValue(entry.detail || "");
+      
+      count++;
+      Logger.log("✅ Đã ghi diary dòng " + newRow + ": " + entry.datetime);
+    } else {
+      Logger.log("⚠️ Bỏ qua diary #" + index + " do thiếu dữ liệu");
+    }
+  });
+  
+  Logger.log("✅ syncDiaryAction: Hoàn thành, đã ghi " + count + " entries");
+  return { status: "success", message: "Đã đồng bộ " + count + " nhật kí!", count: count };
+} // end function syncDiaryAction
+
+// Thêm hàm getDiaryDataAction
+function getDiaryDataAction(ss) {
+  Logger.log("📝 getDiaryDataAction: Bắt đầu");
+  
+  var diary = [];
+  var sheet = ss.getSheetByName(SHEETS_CONFIG.DIARY);
+  if (!sheet) {
+    Logger.log("❌ getDiaryDataAction: Không tìm thấy sheet DIARY");
+    return { status: "error", message: "Không tìm thấy sheet DIARY" };
+  }
+  
+  var rows = sheet.getDataRange().getValues();
+  Logger.log("📝 getDiaryDataAction: Số dòng: " + rows.length);
+  
+  for (var i = 1; i < rows.length; i++) {
+    if (!rows[i][0]) continue;
+    
+    var datetime = rows[i][0];
+    var datetimeStr = "";
+    if (datetime instanceof Date) {
+      // Nếu bị convert sang Date, format lại
+      datetimeStr = formatDiaryDateTime(datetime);
+    } else {
+      datetimeStr = datetime.toString();
+    }
+    
+    diary.push({
+      datetime: datetimeStr,
+      place: rows[i][1] || "",
+      detail: rows[i][2] || ""
+    });
+  }
+  
+  Logger.log("✅ getDiaryDataAction: Hoàn thành, " + diary.length + " entries");
+  return { status: "success", data: diary };
+} // end function getDiaryDataAction
+
+// Thêm hàm formatDiaryDateTime cho Apps Script
+function formatDiaryDateTime(dateInput) {
+  if (!dateInput) return '';
+  
+  var d;
+  if (dateInput instanceof Date) {
+    d = new Date(dateInput);
+  } else {
+    d = new Date(dateInput);
+  }
+  
+  if (isNaN(d.getTime())) {
+    Logger.log("⚠️ formatDiaryDateTime: Invalid date input: " + dateInput);
+    return '';
+  }
+  
+  // Chuyển về GMT+7
+  var offset = d.getTimezoneOffset();
+  var vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
+  
+  var day = String(vietnamTime.getDate()).padStart(2, '0');
+  var month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
+  var year = vietnamTime.getFullYear();
+  var hours = String(vietnamTime.getHours()).padStart(2, '0');
+  var minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
+  var seconds = String(vietnamTime.getSeconds()).padStart(2, '0');
+  
+  var result = day + '-' + month + '-' + year + ' ' + hours + ':' + minutes + ':' + seconds;
+  Logger.log("✅ formatDiaryDateTime: " + dateInput + " → " + result);
+  return result;
+} // end function formatDiaryDateTime
 
 function getAppDataAction(ss) {
   Logger.log("📊 getAppDataAction: Bắt đầu");
@@ -214,10 +334,18 @@ function getAppDataAction(ss) {
   var data = {
     transactions: readTransactionsSheetData(ss),
     reminders: readRemindersSheetData(ss),
-    family: readFamilySheetData(ss)
+    family: readFamilySheetData(ss),
+    diary: []  // Khởi tạo mặc định
   };
   
-  Logger.log("📊 getAppDataAction: Hoàn thành, số transactions: " + data.transactions.length);
+  // Lấy dữ liệu diary
+  var diaryResult = getDiaryDataAction(ss);
+  if (diaryResult && diaryResult.status === "success") {
+    data.diary = diaryResult.data || [];
+  }
+  
+  Logger.log("📊 getAppDataAction: Hoàn thành, số transactions: " + data.transactions.length + 
+             ", diary: " + data.diary.length);
   return { status: "success", data: data };
 } // end function getAppDataAction
 
