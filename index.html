@@ -121,6 +121,43 @@
     </div>
     <!-- end TAB THU -->
 
+    <!-- TAB NHẬT KÍ -->
+    <div id="tab-diary" class="tab-content">
+        <div class="card">
+            <h3>📝 Ghi Nhật Kí</h3>
+            <form id="form-diary">
+                <div class="form-group">
+                    <label>Ngày giờ</label>
+                    <input type="datetime-local" id="diary-datetime" class="form-control">
+                    <small style="color: var(--stat-label-color); font-size: 0.75rem;">Để trống để lấy thời gian hiện tại</small>
+                </div>
+                <div class="form-group">
+                    <label>Địa điểm (Place)</label>
+                    <select id="diary-place" class="form-control">
+                        <option value="Nhà mẹ">Nhà mẹ</option>
+                        <option value="Nhà mình">Nhà mình</option>
+                        <option value="Custom">Custom</option>
+                    </select>
+                </div>
+                <div class="form-group" id="diary-custom-place-group" style="display: none;">
+                    <label>Nhập địa điểm</label>
+                    <input type="text" id="diary-custom-place" class="form-control" placeholder="Nhập địa điểm...">
+                </div>
+                <div class="form-group">
+                    <label>Chi tiết (Detail)</label>
+                    <textarea id="diary-detail" class="form-control" rows="3" placeholder="Nhập chi tiết nhật kí..."></textarea>
+                </div>
+                <button type="submit" class="btn">💾 Lưu Nhật Kí</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>📖 Lịch sử Nhật Kí</h3>
+            <div id="diary-history-container">Đang tải lịch sử nhật kí...</div>
+        </div>
+    </div>
+    <!-- end TAB NHẬT KÍ -->
+
     <!-- TAB THỐNG KÊ -->
     <div id="tab-thongke" class="tab-content">
         <div class="card">
@@ -336,6 +373,7 @@
     <div class="nav-tabs" id="main-nav-tabs">
         <button class="tab-btn active" data-tab="chi">Chi</button>
         <button class="tab-btn" data-tab="thu">Thu</button>
+        <button class="tab-btn" data-tab="diary">Nhật Kí</button>
         <button class="tab-btn" data-tab="thongke">Thống Kê</button>
         <button class="tab-btn" data-tab="family">Family</button>
         <button class="tab-btn" data-tab="nhachen">Nhắc Hẹn</button>

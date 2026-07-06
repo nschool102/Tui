@@ -40,3 +40,5 @@ let localFamilyData = [];
 let localReminderData = [];
 let isSyncing = false;
 let notificationCheckInterval = null;
+// Thêm vào cuối file, sau các biến hiện có
+let diaryData = [];

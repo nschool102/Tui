@@ -697,3 +697,14 @@ input:checked + .slider:before {
     }
 }
 /* end SUMMARY HEADER */
+
+/* Thêm vào cuối file */
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}
+
+#diary-custom-place-group {
+    transition: all 0.3s ease;
+}
