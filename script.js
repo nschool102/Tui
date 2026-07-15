@@ -182,7 +182,6 @@ function triggerPushNotification(title, body) {
 // =========================================================================
 async function loadAppInfoFromManifest() {
     try {
-        // SỬA: thêm BASE_PATH
         const response = await fetch('/Tui/manifest.json');
         if (!response.ok) {
             throw new Error('Không tìm thấy manifest.json');
@@ -370,9 +369,7 @@ function updateSummaryTotals() {
 // =========================================================================
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
-// KHỞI TẠO INDEXEDDB
 function initDB() {
-    // Tăng version từ 4 lên 5
     const request = indexedDB.open("FamilyFinancePWA", 5);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
@@ -425,10 +422,13 @@ function setupEventListeners() {
     document.getElementById("form-chi").addEventListener("submit", (e) => saveTransaction(e, 'chi'));
     document.getElementById("form-thu").addEventListener("submit", (e) => saveTransaction(e, 'thu'));
     
-     document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
+    document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
     
     // Thêm event cho button Lưu Health
-    document.getElementById("btn-save-health-only").addEventListener("click", saveHealthOnly);
+    const btnHealthOnly = document.getElementById("btn-save-health-only");
+    if (btnHealthOnly) {
+        btnHealthOnly.addEventListener("click", saveHealthOnly);
+    }
     
     setupDiaryPlaceToggle();
     setupStatTimeEvents();
@@ -1850,8 +1850,6 @@ function getDiaryEntries(callback) {
 } // end function getDiaryEntries
 
 // Lưu chỉ health check (không lưu diary)
-// Lưu chỉ health check (không lưu diary)
-// Lưu chỉ health check (không lưu diary)
 function saveHealthOnly() {
     console.log('💾 saveHealthOnly - Bắt đầu');
     
@@ -2024,7 +2022,6 @@ function syncHealthToSheet() {
 } // end function syncHealthToSheet
 
 // Lưu nhật kí vào IndexedDB và sync lên sheet
-// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
@@ -2112,7 +2109,7 @@ function saveDiaryEntry(event) {
         const diaryId = e.target.result;
         console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
         
-        // 👇 CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH 👇
+        // CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH
         if (hasHealthData && bloodPressure) {
             const healthDateTime = formatHealthDateTime(date);
             
@@ -2810,9 +2807,6 @@ function scrollToTop() {
 // =========================================================================
 // LOAD INITIAL SETTINGS
 // =========================================================================
-// =========================================================================
-// LOAD INITIAL SETTINGS
-// =========================================================================
 function loadInitialSettings() {
     if (!db) return;
 
@@ -2978,7 +2972,6 @@ function fallbackLoadSettings() {
     });
 } // end function fallbackLoadSettings
 // end LOAD INITIAL SETTINGS
-// end LOAD INITIAL SETTINGS
 
 // =========================================================================
 // KHỞI TẠO APP
@@ -2992,5 +2985,6 @@ window.addEventListener('online', () => {
     syncToGoogleSheets();
     syncRemindersToSheet();
     syncDiaryToSheet();
+    syncHealthToSheet();
 });
 // end KHỞI TẠO APP
