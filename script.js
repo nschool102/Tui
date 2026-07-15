@@ -421,6 +421,8 @@ function setupEventListeners() {
     
     document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
     setupDiaryPlaceToggle();
+     // Thêm mask cho huyết áp
+    setupBloodPressureMask();
 
     setupStatTimeEvents();
     
@@ -1839,16 +1841,24 @@ function getDiaryEntries(callback) {
     };
 } // end function getDiaryEntries
 
+// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
     console.log('💾 saveDiaryEntry - Bắt đầu');
     
+    // Lấy giá trị từ form
     let datetimeVal = document.getElementById('diary-datetime').value;
     const placeSelect = document.getElementById('diary-place');
     const place = placeSelect.value;
     let detail = document.getElementById('diary-detail').value.trim();
     
+    // Lấy giá trị Health Check
+    const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
+    const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
+    const dau = document.getElementById('diary-dau').checked;
+    
+    // Xử lý Custom place
     let finalPlace = place;
     if (place === 'Custom') {
         const customPlace = document.getElementById('diary-custom-place').value.trim();
@@ -1859,6 +1869,25 @@ function saveDiaryEntry(event) {
         finalPlace = customPlace;
     }
     
+    // Validate Health Check nếu có nhập
+    let hasHealthData = false;
+    if (bloodPressure || heartRate || dau) {
+        hasHealthData = true;
+        
+        // Validate huyết áp format ###/##
+        if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+            alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
+            return;
+        }
+        
+        // Validate nhịp tim
+        if (heartRate && (isNaN(heartRate) || heartRate < 30 || heartRate > 200)) {
+            alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
+            return;
+        }
+    }
+    
+    // Xử lý datetime
     let date;
     if (datetimeVal) {
         date = new Date(datetimeVal);
@@ -1866,37 +1895,79 @@ function saveDiaryEntry(event) {
         date = new Date();
     }
     
+    // Format datetime cho diary: dd-mm-yyyy HH:mm:ss
     const formattedDateTime = formatDiaryDateTime(date);
     console.log('📅 Datetime:', formattedDateTime);
     
+    // Tạo diary entry
     const diaryEntry = {
         datetime: formattedDateTime,
         place: finalPlace,
         detail: detail || '',
+        // Lưu thêm health data vào diary để có thể hiển thị sau
+        bloodPressure: bloodPressure || '',
+        heartRate: heartRate || 0,
+        dau: dau,
         synced: 0
     };
     
     console.log('💾 Diary entry:', diaryEntry);
     
-    const tx = db.transaction("diary", "readwrite");
-    const store = tx.objectStore("diary");
-    const request = store.add(diaryEntry);
+    // Bắt đầu transaction để lưu cả diary và health
+    const tx = db.transaction(["diary", "health"], "readwrite");
+    const diaryStore = tx.objectStore("diary");
     
-    request.onsuccess = function(e) {
-        console.log('✅ Đã lưu nhật kí vào IndexedDB với id:', e.target.result);
-        alert("Đã lưu nhật kí cục bộ!");
-        document.getElementById('form-diary').reset();
-        document.getElementById('diary-custom-place-group').style.display = 'none';
-        renderDiaryHistory();
-        syncDiaryToSheet();
+    // Lưu diary
+    const diaryRequest = diaryStore.add(diaryEntry);
+    
+    diaryRequest.onsuccess = function(e) {
+        const diaryId = e.target.result;
+        console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
+        
+        // Nếu có health data, lưu vào health store
+        if (hasHealthData && bloodPressure) {
+            // Format datetime cho health: dd/mm/yyyy hh:mm
+            const healthDateTime = formatHealthDateTime(date);
+            
+            const healthEntry = {
+                datetime: healthDateTime,
+                bloodPressure: bloodPressure,
+                heartRate: heartRate || 0,
+                dau: dau,
+                nextDauPrediction: '', // Sẽ được tính ở sheet
+                synced: 0,
+                diaryId: diaryId // Liên kết với diary entry
+            };
+            
+            const healthStore = tx.objectStore("health");
+            const healthRequest = healthStore.add(healthEntry);
+            
+            healthRequest.onsuccess = function() {
+                console.log('✅ Đã lưu health check vào IndexedDB');
+            };
+            
+            healthRequest.onerror = function(e) {
+                console.error('❌ Lỗi lưu health check:', e.target.error);
+            };
+        }
+        
+        tx.oncomplete = function() {
+            alert("Đã lưu nhật kí cục bộ!");
+            document.getElementById('form-diary').reset();
+            document.getElementById('diary-custom-place-group').style.display = 'none';
+            renderDiaryHistory();
+            syncDiaryToSheet();
+            syncHealthToSheet();
+        };
     };
     
-    request.onerror = function(e) {
-        console.error('❌ Lỗi lưu nhật kí:', e.target.error);
+    diaryRequest.onerror = function(e) {
+        console.error('❌ Lỗi lưu diary:', e.target.error);
         alert("Lỗi lưu nhật kí: " + e.target.error);
     };
 } // end function saveDiaryEntry
 
+// Hiển thị lịch sử nhật kí
 function renderDiaryHistory() {
     const container = document.getElementById('diary-history-container');
     if (!container) return;
@@ -1907,6 +1978,7 @@ function renderDiaryHistory() {
             return;
         }
         
+        // Sắp xếp theo datetime mới nhất trước
         const sorted = [...entries].sort((a, b) => {
             const aDate = a.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (a.datetime.split(' ')[1] || '');
             const bDate = b.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (b.datetime.split(' ')[1] || '');
@@ -1917,13 +1989,26 @@ function renderDiaryHistory() {
             <th>Ngày giờ</th>
             <th>Địa điểm</th>
             <th>Chi tiết</th>
+            <th>🩺 Health</th>
         </tr></thead><tbody>`;
         
         sorted.slice(0, 50).forEach(entry => {
+            // Tạo health info nếu có
+            let healthInfo = '';
+            if (entry.bloodPressure || entry.heartRate || entry.dau !== undefined) {
+                const dauText = entry.dau ? '✅' : '';
+                healthInfo = `<span style="font-size:0.75rem; color:var(--stat-label-color);">
+                    ${entry.bloodPressure ? '🩸' + entry.bloodPressure : ''}
+                    ${entry.heartRate ? ' 💓' + entry.heartRate : ''}
+                    ${dauText ? ' 🌸' + dauText : ''}
+                </span>`;
+            }
+            
             html += `<tr>
                 <td style="white-space: nowrap; font-size: 0.85rem;">${entry.datetime}</td>
                 <td><span style="font-weight: 500; color: var(--theme-color);">${entry.place}</span></td>
-                <td>${entry.detail}</td>
+                <td>${entry.detail || ''}</td>
+                <td>${healthInfo}</td>
             </tr>`;
         });
         
@@ -1934,6 +2019,85 @@ function renderDiaryHistory() {
         container.innerHTML = html;
     });
 } // end function renderDiaryHistory
+
+// Format datetime cho health: dd/mm/yyyy hh:mm (24h)
+function formatHealthDateTime(date) {
+    if (!date) return '';
+    
+    let d;
+    if (typeof date === 'string') {
+        d = new Date(date);
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) {
+        console.log('⚠️ formatHealthDateTime: Invalid date');
+        return '';
+    }
+    
+    // Điều chỉnh về GMT+7
+    const offset = d.getTimezoneOffset();
+    const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
+    
+    const day = String(vietnamTime.getDate()).padStart(2, '0');
+    const month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
+    const year = vietnamTime.getFullYear();
+    const hours = String(vietnamTime.getHours()).padStart(2, '0');
+    const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+} // end function formatHealthDateTime
+
+// Thêm vào setupEventListeners() hoặc sau khi DOM load
+function setupBloodPressureMask() {
+    const bpInput = document.getElementById('diary-blood-pressure');
+    if (!bpInput) return;
+    
+    bpInput.addEventListener('input', function(e) {
+        // Chỉ cho phép số và dấu /
+        let value = this.value.replace(/[^0-9/]/g, '');
+        
+        // Giới hạn độ dài
+        if (value.length > 7) {
+            value = value.slice(0, 7);
+        }
+        
+        // Tự động thêm dấu / sau 3 số
+        if (value.length === 3 && !value.includes('/')) {
+            value = value + '/';
+        }
+        
+        // Nếu đã có / thì chỉ cho phép 2 số sau /
+        if (value.includes('/')) {
+            const parts = value.split('/');
+            if (parts[0].length > 3) {
+                parts[0] = parts[0].slice(0, 3);
+            }
+            if (parts[1] && parts[1].length > 2) {
+                parts[1] = parts[1].slice(0, 2);
+            }
+            value = parts.join('/');
+        }
+        
+        this.value = value;
+    });
+    
+    // Xử lý paste
+    bpInput.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const clean = pasted.replace(/[^0-9/]/g, '');
+        if (clean) {
+            // Tự động format
+            let value = clean;
+            if (value.length >= 3 && !value.includes('/')) {
+                value = value.slice(0, 3) + '/' + value.slice(3);
+            }
+            this.value = value.slice(0, 7);
+        }
+    });
+} // end function setupBloodPressureMask
 
 function syncDiaryToSheet() {
     console.log('🔍 syncDiaryToSheet - Bắt đầu');
