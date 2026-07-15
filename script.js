@@ -419,12 +419,14 @@ function setupEventListeners() {
     document.getElementById("form-chi").addEventListener("submit", (e) => saveTransaction(e, 'chi'));
     document.getElementById("form-thu").addEventListener("submit", (e) => saveTransaction(e, 'thu'));
     
-    document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
+     document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
+    
+    // Thêm event cho button Lưu Health
+    document.getElementById("btn-save-health-only").addEventListener("click", saveHealthOnly);
+    
     setupDiaryPlaceToggle();
-     // Thêm mask cho huyết áp
-    setupBloodPressureMask();
-
     setupStatTimeEvents();
+    setupBloodPressureMask();
     
     document.getElementById("form-nhachen").addEventListener("submit", (e) => saveReminder(e));
 
@@ -1841,6 +1843,170 @@ function getDiaryEntries(callback) {
     };
 } // end function getDiaryEntries
 
+// Lưu chỉ health check (không lưu diary)
+function saveHealthOnly() {
+    console.log('💾 saveHealthOnly - Bắt đầu');
+    
+    // Lấy giá trị từ form
+    let datetimeVal = document.getElementById('diary-datetime').value;
+    const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
+    const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
+    const dau = document.getElementById('diary-dau').checked;
+    
+    // Validate
+    if (!bloodPressure) {
+        alert('Vui lòng nhập huyết áp!');
+        return;
+    }
+    
+    if (!/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+        alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
+        return;
+    }
+    
+    if (!heartRate || isNaN(heartRate) || heartRate < 30 || heartRate > 200) {
+        alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
+        return;
+    }
+    
+    // Xử lý datetime
+    let date;
+    if (datetimeVal) {
+        date = new Date(datetimeVal);
+    } else {
+        date = new Date();
+    }
+    
+    // Format datetime cho health: dd/mm/yyyy hh:mm
+    const healthDateTime = formatHealthDateTime(date);
+    console.log('📅 Health Datetime:', healthDateTime);
+    
+    // Kiểm tra db
+    if (!db) {
+        console.error('❌ Database chưa được khởi tạo');
+        alert('Lỗi: Database chưa sẵn sàng. Vui lòng tải lại trang!');
+        return;
+    }
+    
+    const healthEntry = {
+        datetime: healthDateTime,
+        bloodPressure: bloodPressure,
+        heartRate: heartRate,
+        dau: dau,
+        nextDauPrediction: '', // Sẽ được tính ở sheet
+        synced: 0,
+        diaryId: null // Không liên kết với diary
+    };
+    
+    console.log('💾 Health entry:', healthEntry);
+    
+    const tx = db.transaction("health", "readwrite");
+    const store = tx.objectStore("health");
+    const request = store.add(healthEntry);
+    
+    request.onsuccess = function(e) {
+        console.log('✅ Đã lưu health check vào IndexedDB với id:', e.target.result);
+        alert("Đã lưu health check cục bộ!");
+        // Reset chỉ các field health
+        document.getElementById('diary-blood-pressure').value = '';
+        document.getElementById('diary-heart-rate').value = '';
+        document.getElementById('diary-dau').checked = false;
+        syncHealthToSheet();
+    };
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi lưu health check:', e.target.error);
+        alert("Lỗi lưu health check: " + e.target.error);
+    };
+} // end function saveHealthOnly
+
+// Đồng bộ health check lên Google Sheet
+function syncHealthToSheet() {
+    console.log('🔍 syncHealthToSheet - Bắt đầu');
+    
+    if (!navigator.onLine) {
+        console.log('❌ Offline - không thể sync health');
+        return;
+    }
+    
+    if (!CONFIG.apiEndpoint) {
+        console.log('❌ Không có API endpoint');
+        return;
+    }
+    
+    if (!db) {
+        console.log('❌ Chưa có database');
+        return;
+    }
+    
+    const tx = db.transaction("health", "readonly");
+    const store = tx.objectStore("health");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
+        const entries = e.target.result || [];
+        const unsynced = entries.filter(t => t.synced === 0);
+        console.log('📊 Số health check chưa sync:', unsynced.length);
+        
+        if (unsynced.length === 0) {
+            console.log('📭 Không có health check chưa sync');
+            return;
+        }
+        
+        // Log dữ liệu để debug
+        console.log('📤 Dữ liệu health gửi lên:', JSON.stringify(unsynced, null, 2));
+        
+        fetch(CONFIG.apiEndpoint, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+                action: 'syncHealth',
+                data: unsynced.map(t => ({
+                    datetime: t.datetime,
+                    bloodPressure: t.bloodPressure,
+                    heartRate: t.heartRate,
+                    dau: t.dau,
+                    nextDauPrediction: t.nextDauPrediction || ''
+                }))
+            })
+        })
+        .then(res => {
+            console.log('📥 Response status:', res.status);
+            return res.json();
+        })
+        .then(resData => {
+            console.log('📥 Response từ server:', resData);
+            
+            if (resData.status === "success") {
+                console.log('✅ Sync health thành công!');
+                
+                const tx2 = db.transaction("health", "readwrite");
+                const store2 = tx2.objectStore("health");
+                
+                unsynced.forEach(t => {
+                    t.synced = 1;
+                    store2.put(t);
+                });
+                
+                tx2.oncomplete = function() {
+                    console.log('✅ Đã cập nhật trạng thái synced cho health');
+                };
+            } else {
+                console.log('❌ Sync health thất bại:', resData.message);
+            }
+        })
+        .catch(err => {
+            console.error('❌ Lỗi fetch health:', err);
+        });
+    };
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi đọc IndexedDB health:', e.target.error);
+    };
+} // end function syncHealthToSheet
+
 // Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
@@ -1869,24 +2035,6 @@ function saveDiaryEntry(event) {
         finalPlace = customPlace;
     }
     
-    // Validate Health Check nếu có nhập
-    let hasHealthData = false;
-    if (bloodPressure || heartRate || dau) {
-        hasHealthData = true;
-        
-        // Validate huyết áp format ###/##
-        if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
-            alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
-            return;
-        }
-        
-        // Validate nhịp tim
-        if (heartRate && (isNaN(heartRate) || heartRate < 30 || heartRate > 200)) {
-            alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
-            return;
-        }
-    }
-    
     // Xử lý datetime
     let date;
     if (datetimeVal) {
@@ -1913,6 +2061,13 @@ function saveDiaryEntry(event) {
     
     console.log('💾 Diary entry:', diaryEntry);
     
+    // Kiểm tra db
+    if (!db) {
+        console.error('❌ Database chưa được khởi tạo');
+        alert('Lỗi: Database chưa sẵn sàng. Vui lòng tải lại trang!');
+        return;
+    }
+    
     // Bắt đầu transaction để lưu cả diary và health
     const tx = db.transaction(["diary", "health"], "readwrite");
     const diaryStore = tx.objectStore("diary");
@@ -1925,7 +2080,7 @@ function saveDiaryEntry(event) {
         console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
         
         // Nếu có health data, lưu vào health store
-        if (hasHealthData && bloodPressure) {
+        if (bloodPressure) {
             // Format datetime cho health: dd/mm/yyyy hh:mm
             const healthDateTime = formatHealthDateTime(date);
             
