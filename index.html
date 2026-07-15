@@ -168,7 +168,15 @@
                 </div>
                 <!-- END PHẦN HEALTH CHECK -->
     
-                <button type="submit" class="btn">💾 Lưu Nhật Kí</button>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="submit" class="btn" style="flex: 2; min-width: 120px;">💾 Lưu Nhật Kí</button>
+                    <button type="button" class="btn" id="btn-save-health-only" style="flex: 1; min-width: 100px; background: linear-gradient(135deg, #4CAF50, #2196F3) !important;">
+                        🏥 Lưu Health
+                    </button>
+                </div>
+                <small style="color: var(--stat-label-color); font-size: 0.75rem; display: block; margin-top: 8px;">
+                    💡 "Lưu Nhật Kí" sẽ lưu cả Diary và Health. "Lưu Health" chỉ lưu Health Check.
+                </small>
             </form>
         </div>
     
