@@ -370,8 +370,10 @@ function updateSummaryTotals() {
 // =========================================================================
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
+// KHỞI TẠO INDEXEDDB
 function initDB() {
-    const request = indexedDB.open("FamilyFinancePWA", 4);
+    // Tăng version từ 4 lên 5
+    const request = indexedDB.open("FamilyFinancePWA", 5);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
         if (!db.objectStoreNames.contains("transactions")) {
@@ -386,9 +388,13 @@ function initDB() {
         if (!db.objectStoreNames.contains("diary")) {
             db.createObjectStore("diary", { keyPath: "id", autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains("health")) {
+            db.createObjectStore("health", { keyPath: "id", autoIncrement: true });
+        }
     };
     request.onsuccess = function(e) {
         db = e.target.result;
+        console.log('✅ IndexedDB opened successfully, version:', db.version);
         cleanupCorruptedReminders(() => {
             loadInitialSettings();
             requestNotificationPermission();
