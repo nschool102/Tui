@@ -1851,6 +1851,7 @@ function getDiaryEntries(callback) {
 
 // Lưu chỉ health check (không lưu diary)
 // Lưu chỉ health check (không lưu diary)
+// Lưu chỉ health check (không lưu diary)
 function saveHealthOnly() {
     console.log('💾 saveHealthOnly - Bắt đầu');
     
@@ -1860,18 +1861,19 @@ function saveHealthOnly() {
     const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
     const dau = document.getElementById('diary-dau').checked;
     
-    // Validate
-    if (!bloodPressure) {
-        alert('Vui lòng nhập huyết áp!');
+    // Kiểm tra có dữ liệu health không
+    if (!bloodPressure && isNaN(heartRate) && !dau) {
+        alert('Vui lòng nhập ít nhất một thông tin health (huyết áp, nhịp tim hoặc dâu)!');
         return;
     }
     
-    if (!/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+    // Validate
+    if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
         alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
         return;
     }
     
-    if (!heartRate || isNaN(heartRate) || heartRate < 30 || heartRate > 200) {
+    if (!isNaN(heartRate) && (heartRate < 30 || heartRate > 200)) {
         alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
         return;
     }
@@ -1895,7 +1897,7 @@ function saveHealthOnly() {
         return;
     }
     
-    // Kiểm tra object store health có tồn tại không
+    // Kiểm tra object store health
     if (!db.objectStoreNames.contains("health")) {
         console.error('❌ Health store not found in database');
         alert('Lỗi: Object store health không tồn tại. Vui lòng tải lại trang!');
@@ -1904,9 +1906,9 @@ function saveHealthOnly() {
     
     const healthEntry = {
         datetime: healthDateTime,
-        bloodPressure: bloodPressure,
-        heartRate: heartRate,
-        dau: dau,
+        bloodPressure: bloodPressure || '',
+        heartRate: heartRate || 0,
+        dau: dau || false,
         nextDauPrediction: '',
         synced: 0,
         diaryId: null
@@ -2022,6 +2024,7 @@ function syncHealthToSheet() {
 } // end function syncHealthToSheet
 
 // Lưu nhật kí vào IndexedDB và sync lên sheet
+// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
@@ -2049,24 +2052,6 @@ function saveDiaryEntry(event) {
         finalPlace = customPlace;
     }
     
-    // Validate Health Check nếu có nhập
-    let hasHealthData = false;
-    if (bloodPressure || !isNaN(heartRate) || dau) {
-        hasHealthData = true;
-        
-        // Validate huyết áp format ###/##
-        if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
-            alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
-            return;
-        }
-        
-        // Validate nhịp tim
-        if (heartRate && (isNaN(heartRate) || heartRate < 30 || heartRate > 200)) {
-            alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
-            return;
-        }
-    }
-    
     // Xử lý datetime
     let date;
     if (datetimeVal) {
@@ -2079,14 +2064,33 @@ function saveDiaryEntry(event) {
     const formattedDateTime = formatDiaryDateTime(date);
     console.log('📅 Datetime:', formattedDateTime);
     
+    // Kiểm tra có dữ liệu health không
+    const hasHealthData = bloodPressure || !isNaN(heartRate) || dau;
+    
+    // Validate health nếu có dữ liệu
+    if (hasHealthData) {
+        // Validate huyết áp format ###/## (nếu có nhập)
+        if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+            alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
+            return;
+        }
+        
+        // Validate nhịp tim (nếu có nhập)
+        if (!isNaN(heartRate) && (heartRate < 30 || heartRate > 200)) {
+            alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
+            return;
+        }
+    }
+    
     // Tạo diary entry
     const diaryEntry = {
         datetime: formattedDateTime,
         place: finalPlace,
         detail: detail || '',
+        // Lưu health data vào diary để hiển thị (nếu có)
         bloodPressure: bloodPressure || '',
         heartRate: heartRate || 0,
-        dau: dau,
+        dau: dau || false,
         synced: 0
     };
     
@@ -2099,7 +2103,7 @@ function saveDiaryEntry(event) {
         return;
     }
     
-    // LƯU DIARY TRƯỚC
+    // LƯU DIARY
     const tx1 = db.transaction("diary", "readwrite");
     const diaryStore = tx1.objectStore("diary");
     const diaryRequest = diaryStore.add(diaryEntry);
@@ -2108,15 +2112,15 @@ function saveDiaryEntry(event) {
         const diaryId = e.target.result;
         console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
         
-        // Nếu có health data, lưu vào health store (transaction riêng)
+        // 👇 CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH 👇
         if (hasHealthData && bloodPressure) {
             const healthDateTime = formatHealthDateTime(date);
             
             const healthEntry = {
                 datetime: healthDateTime,
-                bloodPressure: bloodPressure,
+                bloodPressure: bloodPressure || '',
                 heartRate: heartRate || 0,
-                dau: dau,
+                dau: dau || false,
                 nextDauPrediction: '',
                 synced: 0,
                 diaryId: diaryId
@@ -2124,13 +2128,13 @@ function saveDiaryEntry(event) {
             
             console.log('💾 Health entry (từ diary):', healthEntry);
             
-            // Dùng transaction riêng cho health
+            // Lưu vào health store
             const tx2 = db.transaction("health", "readwrite");
             const healthStore = tx2.objectStore("health");
             const healthRequest = healthStore.add(healthEntry);
             
             healthRequest.onsuccess = function() {
-                console.log('✅ Đã lưu health check vào IndexedDB với id:', e.target.result);
+                console.log('✅ Đã lưu health check vào IndexedDB');
             };
             
             healthRequest.onerror = function(e) {
@@ -2145,6 +2149,8 @@ function saveDiaryEntry(event) {
             tx2.onerror = function(e) {
                 console.error('❌ Health transaction error:', e.target.error);
             };
+        } else {
+            console.log('ℹ️ Không có dữ liệu health, bỏ qua lưu health check');
         }
         
         tx1.oncomplete = function() {
