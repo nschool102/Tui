@@ -182,7 +182,6 @@ function triggerPushNotification(title, body) {
 // =========================================================================
 async function loadAppInfoFromManifest() {
     try {
-        // SỬA: thêm BASE_PATH
         const response = await fetch('/Tui/manifest.json');
         if (!response.ok) {
             throw new Error('Không tìm thấy manifest.json');
@@ -371,7 +370,7 @@ function updateSummaryTotals() {
 // KHỞI TẠO INDEXEDDB
 // =========================================================================
 function initDB() {
-    const request = indexedDB.open("FamilyFinancePWA", 4);
+    const request = indexedDB.open("FamilyFinancePWA", 5);
     request.onupgradeneeded = function(e) {
         db = e.target.result;
         if (!db.objectStoreNames.contains("transactions")) {
@@ -386,9 +385,13 @@ function initDB() {
         if (!db.objectStoreNames.contains("diary")) {
             db.createObjectStore("diary", { keyPath: "id", autoIncrement: true });
         }
+        if (!db.objectStoreNames.contains("health")) {
+            db.createObjectStore("health", { keyPath: "id", autoIncrement: true });
+        }
     };
     request.onsuccess = function(e) {
         db = e.target.result;
+        console.log('✅ IndexedDB opened successfully, version:', db.version);
         cleanupCorruptedReminders(() => {
             loadInitialSettings();
             requestNotificationPermission();
@@ -420,9 +423,16 @@ function setupEventListeners() {
     document.getElementById("form-thu").addEventListener("submit", (e) => saveTransaction(e, 'thu'));
     
     document.getElementById("form-diary").addEventListener("submit", (e) => saveDiaryEntry(e));
+    
+    // Thêm event cho button Lưu Health
+    const btnHealthOnly = document.getElementById("btn-save-health-only");
+    if (btnHealthOnly) {
+        btnHealthOnly.addEventListener("click", saveHealthOnly);
+    }
+    
     setupDiaryPlaceToggle();
-
     setupStatTimeEvents();
+    setupBloodPressureMask();
     
     document.getElementById("form-nhachen").addEventListener("submit", (e) => saveReminder(e));
 
@@ -1839,16 +1849,206 @@ function getDiaryEntries(callback) {
     };
 } // end function getDiaryEntries
 
+// Lưu chỉ health check (không lưu diary)
+function saveHealthOnly() {
+    console.log('💾 saveHealthOnly - Bắt đầu');
+    
+    // Lấy giá trị từ form
+    let datetimeVal = document.getElementById('diary-datetime').value;
+    const weight = parseFloat(document.getElementById('diary-weight').value);
+    const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
+    const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
+    const dau = document.getElementById('diary-dau').checked;
+    
+    // Kiểm tra có dữ liệu health không
+    if (isNaN(weight) && !bloodPressure && isNaN(heartRate) && !dau) {
+        alert('Vui lòng nhập ít nhất một thông tin health (cân nặng, huyết áp, nhịp tim hoặc dâu)!');
+        return;
+    }
+    
+    // Validate
+    if (!isNaN(weight) && (weight <= 0 || weight > 300)) {
+        alert('Vui lòng nhập cân nặng hợp lệ (0-300 kg)!');
+        return;
+    }
+    
+    if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+        alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
+        return;
+    }
+    
+    if (!isNaN(heartRate) && (heartRate < 30 || heartRate > 200)) {
+        alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
+        return;
+    }
+    
+    // Xử lý datetime
+    let date;
+    if (datetimeVal) {
+        date = new Date(datetimeVal);
+    } else {
+        date = new Date();
+    }
+    
+    // Format datetime cho health: dd/mm/yyyy hh:mm
+    const healthDateTime = formatHealthDateTime(date);
+    console.log('📅 Health Datetime:', healthDateTime);
+    
+    // Kiểm tra db
+    if (!db) {
+        console.error('❌ Database chưa được khởi tạo');
+        alert('Lỗi: Database chưa sẵn sàng. Vui lòng tải lại trang!');
+        return;
+    }
+    
+    // Kiểm tra object store health
+    if (!db.objectStoreNames.contains("health")) {
+        console.error('❌ Health store not found in database');
+        alert('Lỗi: Object store health không tồn tại. Vui lòng tải lại trang!');
+        return;
+    }
+    
+    const healthEntry = {
+        datetime: healthDateTime,
+        weight: isNaN(weight) ? null : weight,
+        bloodPressure: bloodPressure || '',
+        heartRate: heartRate || 0,
+        dau: dau || false,
+        nextDauPrediction: '',
+        synced: 0,
+        diaryId: null
+    };
+    
+    console.log('💾 Health entry:', healthEntry);
+    
+    const tx = db.transaction("health", "readwrite");
+    const store = tx.objectStore("health");
+    const request = store.add(healthEntry);
+    
+    request.onsuccess = function(e) {
+        console.log('✅ Đã lưu health check vào IndexedDB với id:', e.target.result);
+        alert("Đã lưu health check cục bộ!");
+        // Reset chỉ các field health
+        document.getElementById('diary-weight').value = '';
+        document.getElementById('diary-blood-pressure').value = '';
+        document.getElementById('diary-heart-rate').value = '';
+        document.getElementById('diary-dau').checked = false;
+        syncHealthToSheet();
+    };
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi lưu health check:', e.target.error);
+        alert("Lỗi lưu health check: " + e.target.error);
+    };
+} // end function saveHealthOnly
+
+// Đồng bộ health check lên Google Sheet
+function syncHealthToSheet() {
+    console.log('🔍 syncHealthToSheet - Bắt đầu');
+    
+    if (!navigator.onLine) {
+        console.log('❌ Offline - không thể sync health');
+        return;
+    }
+    
+    if (!CONFIG.apiEndpoint) {
+        console.log('❌ Không có API endpoint');
+        return;
+    }
+    
+    if (!db) {
+        console.log('❌ Chưa có database');
+        return;
+    }
+    
+    const tx = db.transaction("health", "readonly");
+    const store = tx.objectStore("health");
+    const request = store.getAll();
+    
+    request.onsuccess = function(e) {
+        const entries = e.target.result || [];
+        const unsynced = entries.filter(t => t.synced === 0);
+        console.log('📊 Số health check chưa sync:', unsynced.length);
+        
+        if (unsynced.length === 0) {
+            console.log('📭 Không có health check chưa sync');
+            return;
+        }
+        
+        // Log dữ liệu để debug
+        console.log('📤 Dữ liệu health gửi lên:', JSON.stringify(unsynced, null, 2));
+        
+        fetch(CONFIG.apiEndpoint, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify({
+                action: 'syncHealth',
+                data: unsynced.map(t => ({
+                    datetime: t.datetime,
+                    weight: (t.weight === null || t.weight === undefined || isNaN(t.weight)) ? '' : t.weight,
+                    bloodPressure: t.bloodPressure,
+                    heartRate: t.heartRate,
+                    dau: t.dau,
+                    nextDauPrediction: t.nextDauPrediction || ''
+                }))
+            })
+        })
+        .then(res => {
+            console.log('📥 Response status:', res.status);
+            return res.json();
+        })
+        .then(resData => {
+            console.log('📥 Response từ server:', resData);
+            
+            if (resData.status === "success") {
+                console.log('✅ Sync health thành công!');
+                
+                const tx2 = db.transaction("health", "readwrite");
+                const store2 = tx2.objectStore("health");
+                
+                unsynced.forEach(t => {
+                    t.synced = 1;
+                    store2.put(t);
+                });
+                
+                tx2.oncomplete = function() {
+                    console.log('✅ Đã cập nhật trạng thái synced cho health');
+                };
+            } else {
+                console.log('❌ Sync health thất bại:', resData.message);
+            }
+        })
+        .catch(err => {
+            console.error('❌ Lỗi fetch health:', err);
+        });
+    };
+    
+    request.onerror = function(e) {
+        console.error('❌ Lỗi đọc IndexedDB health:', e.target.error);
+    };
+} // end function syncHealthToSheet
+
+// Lưu nhật kí vào IndexedDB và sync lên sheet
 function saveDiaryEntry(event) {
     event.preventDefault();
     
     console.log('💾 saveDiaryEntry - Bắt đầu');
     
+    // Lấy giá trị từ form
     let datetimeVal = document.getElementById('diary-datetime').value;
     const placeSelect = document.getElementById('diary-place');
     const place = placeSelect.value;
     let detail = document.getElementById('diary-detail').value.trim();
     
+    // Lấy giá trị Health Check
+    const weight = parseFloat(document.getElementById('diary-weight').value);
+    const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
+    const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
+    const dau = document.getElementById('diary-dau').checked;
+    
+    // Xử lý Custom place
     let finalPlace = place;
     if (place === 'Custom') {
         const customPlace = document.getElementById('diary-custom-place').value.trim();
@@ -1859,6 +2059,7 @@ function saveDiaryEntry(event) {
         finalPlace = customPlace;
     }
     
+    // Xử lý datetime
     let date;
     if (datetimeVal) {
         date = new Date(datetimeVal);
@@ -1866,37 +2067,124 @@ function saveDiaryEntry(event) {
         date = new Date();
     }
     
+    // Format datetime cho diary: dd-mm-yyyy HH:mm:ss
     const formattedDateTime = formatDiaryDateTime(date);
     console.log('📅 Datetime:', formattedDateTime);
     
+    // Kiểm tra có dữ liệu health không
+    const hasHealthData = !isNaN(weight) || bloodPressure || !isNaN(heartRate) || dau;
+    
+    // Validate health nếu có dữ liệu
+    if (hasHealthData) {
+        // Validate cân nặng (nếu có nhập)
+        if (!isNaN(weight) && (weight <= 0 || weight > 300)) {
+            alert('Vui lòng nhập cân nặng hợp lệ (0-300 kg)!');
+            return;
+        }
+        
+        // Validate huyết áp format ###/## (nếu có nhập)
+        if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
+            alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
+            return;
+        }
+        
+        // Validate nhịp tim (nếu có nhập)
+        if (!isNaN(heartRate) && (heartRate < 30 || heartRate > 200)) {
+            alert('Vui lòng nhập nhịp tim hợp lệ (30-200 bpm)!');
+            return;
+        }
+    }
+    
+    // Tạo diary entry
     const diaryEntry = {
         datetime: formattedDateTime,
         place: finalPlace,
         detail: detail || '',
+        // Lưu health data vào diary để hiển thị (nếu có)
+        weight: isNaN(weight) ? null : weight,
+        bloodPressure: bloodPressure || '',
+        heartRate: heartRate || 0,
+        dau: dau || false,
         synced: 0
     };
     
     console.log('💾 Diary entry:', diaryEntry);
     
-    const tx = db.transaction("diary", "readwrite");
-    const store = tx.objectStore("diary");
-    const request = store.add(diaryEntry);
+    // Kiểm tra db
+    if (!db) {
+        console.error('❌ Database chưa được khởi tạo');
+        alert('Lỗi: Database chưa sẵn sàng. Vui lòng tải lại trang!');
+        return;
+    }
     
-    request.onsuccess = function(e) {
-        console.log('✅ Đã lưu nhật kí vào IndexedDB với id:', e.target.result);
-        alert("Đã lưu nhật kí cục bộ!");
-        document.getElementById('form-diary').reset();
-        document.getElementById('diary-custom-place-group').style.display = 'none';
-        renderDiaryHistory();
-        syncDiaryToSheet();
+    // LƯU DIARY
+    const tx1 = db.transaction("diary", "readwrite");
+    const diaryStore = tx1.objectStore("diary");
+    const diaryRequest = diaryStore.add(diaryEntry);
+    
+    diaryRequest.onsuccess = function(e) {
+        const diaryId = e.target.result;
+        console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
+        
+        // CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH (cân nặng, huyết áp, nhịp tim hoặc dâu)
+        if (hasHealthData) {
+            const healthDateTime = formatHealthDateTime(date);
+            
+            const healthEntry = {
+                datetime: healthDateTime,
+                weight: isNaN(weight) ? null : weight,
+                bloodPressure: bloodPressure || '',
+                heartRate: heartRate || 0,
+                dau: dau || false,
+                nextDauPrediction: '',
+                synced: 0,
+                diaryId: diaryId
+            };
+            
+            console.log('💾 Health entry (từ diary):', healthEntry);
+            
+            // Lưu vào health store
+            const tx2 = db.transaction("health", "readwrite");
+            const healthStore = tx2.objectStore("health");
+            const healthRequest = healthStore.add(healthEntry);
+            
+            healthRequest.onsuccess = function() {
+                console.log('✅ Đã lưu health check vào IndexedDB');
+            };
+            
+            healthRequest.onerror = function(e) {
+                console.error('❌ Lỗi lưu health check:', e.target.error);
+            };
+            
+            tx2.oncomplete = function() {
+                console.log('✅ Health transaction completed');
+                syncHealthToSheet();
+            };
+            
+            tx2.onerror = function(e) {
+                console.error('❌ Health transaction error:', e.target.error);
+            };
+        } else {
+            console.log('ℹ️ Không có dữ liệu health, bỏ qua lưu health check');
+        }
+        
+        tx1.oncomplete = function() {
+            console.log('✅ Diary transaction completed');
+            alert("Đã lưu nhật kí cục bộ!");
+            document.getElementById('form-diary').reset();
+            document.getElementById('diary-custom-place-group').style.display = 'none';
+            renderDiaryHistory();
+            syncDiaryToSheet();
+        };
     };
     
-    request.onerror = function(e) {
-        console.error('❌ Lỗi lưu nhật kí:', e.target.error);
+    diaryRequest.onerror = function(e) {
+        console.error('❌ Lỗi lưu diary:', e.target.error);
         alert("Lỗi lưu nhật kí: " + e.target.error);
     };
 } // end function saveDiaryEntry
 
+// Hiển thị lịch sử nhật kí
 function renderDiaryHistory() {
     const container = document.getElementById('diary-history-container');
     if (!container) return;
@@ -1907,6 +2195,7 @@ function renderDiaryHistory() {
             return;
         }
         
+        // Sắp xếp theo datetime mới nhất trước
         const sorted = [...entries].sort((a, b) => {
             const aDate = a.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (a.datetime.split(' ')[1] || '');
             const bDate = b.datetime.split(' ')[0].split('-').reverse().join('-') + ' ' + (b.datetime.split(' ')[1] || '');
@@ -1917,13 +2206,27 @@ function renderDiaryHistory() {
             <th>Ngày giờ</th>
             <th>Địa điểm</th>
             <th>Chi tiết</th>
+            <th>🩺 Health</th>
         </tr></thead><tbody>`;
         
         sorted.slice(0, 50).forEach(entry => {
+            // Tạo health info nếu có
+            let healthInfo = '';
+            if (entry.weight || entry.bloodPressure || entry.heartRate || entry.dau !== undefined) {
+                const dauText = entry.dau ? '✅' : '';
+                healthInfo = `<span style="font-size:0.75rem; color:var(--stat-label-color);">
+                    ${entry.weight ? '⚖️' + entry.weight + 'kg' : ''}
+                    ${entry.bloodPressure ? ' 🩸' + entry.bloodPressure : ''}
+                    ${entry.heartRate ? ' 💓' + entry.heartRate : ''}
+                    ${dauText ? ' 🌸' + dauText : ''}
+                </span>`;
+            }
+            
             html += `<tr>
                 <td style="white-space: nowrap; font-size: 0.85rem;">${entry.datetime}</td>
                 <td><span style="font-weight: 500; color: var(--theme-color);">${entry.place}</span></td>
-                <td>${entry.detail}</td>
+                <td>${entry.detail || ''}</td>
+                <td>${healthInfo}</td>
             </tr>`;
         });
         
@@ -1934,6 +2237,85 @@ function renderDiaryHistory() {
         container.innerHTML = html;
     });
 } // end function renderDiaryHistory
+
+// Format datetime cho health: dd/mm/yyyy hh:mm (24h)
+function formatHealthDateTime(date) {
+    if (!date) return '';
+    
+    let d;
+    if (typeof date === 'string') {
+        d = new Date(date);
+    } else {
+        d = new Date(date);
+    }
+    
+    if (isNaN(d.getTime())) {
+        console.log('⚠️ formatHealthDateTime: Invalid date');
+        return '';
+    }
+    
+    // Điều chỉnh về GMT+7
+    const offset = d.getTimezoneOffset();
+    const vietnamTime = new Date(d.getTime() + (offset + 420) * 60000);
+    
+    const day = String(vietnamTime.getDate()).padStart(2, '0');
+    const month = String(vietnamTime.getMonth() + 1).padStart(2, '0');
+    const year = vietnamTime.getFullYear();
+    const hours = String(vietnamTime.getHours()).padStart(2, '0');
+    const minutes = String(vietnamTime.getMinutes()).padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+} // end function formatHealthDateTime
+
+// Thêm vào setupEventListeners() hoặc sau khi DOM load
+function setupBloodPressureMask() {
+    const bpInput = document.getElementById('diary-blood-pressure');
+    if (!bpInput) return;
+    
+    bpInput.addEventListener('input', function(e) {
+        // Chỉ cho phép số và dấu /
+        let value = this.value.replace(/[^0-9/]/g, '');
+        
+        // Giới hạn độ dài
+        if (value.length > 7) {
+            value = value.slice(0, 7);
+        }
+        
+        // Tự động thêm dấu / sau 3 số
+        if (value.length === 3 && !value.includes('/')) {
+            value = value + '/';
+        }
+        
+        // Nếu đã có / thì chỉ cho phép 2 số sau /
+        if (value.includes('/')) {
+            const parts = value.split('/');
+            if (parts[0].length > 3) {
+                parts[0] = parts[0].slice(0, 3);
+            }
+            if (parts[1] && parts[1].length > 2) {
+                parts[1] = parts[1].slice(0, 2);
+            }
+            value = parts.join('/');
+        }
+        
+        this.value = value;
+    });
+    
+    // Xử lý paste
+    bpInput.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const clean = pasted.replace(/[^0-9/]/g, '');
+        if (clean) {
+            // Tự động format
+            let value = clean;
+            if (value.length >= 3 && !value.includes('/')) {
+                value = value.slice(0, 3) + '/' + value.slice(3);
+            }
+            this.value = value.slice(0, 7);
+        }
+    });
+} // end function setupBloodPressureMask
 
 function syncDiaryToSheet() {
     console.log('🔍 syncDiaryToSheet - Bắt đầu');
@@ -2447,49 +2829,167 @@ function scrollToTop() {
 function loadInitialSettings() {
     if (!db) return;
 
-    const tx = db.transaction("settings", "readonly");
-    const store = tx.objectStore("settings");
-    const request = store.getAll();
-
-    request.onsuccess = function(e) {
-        const results = e.target.result || [];
-
-        const savedFamily = results.find(item => item.key === "family_data");
-        if (savedFamily) {
-            localFamilyData = savedFamily.value;
+    // Kiểm tra object stores
+    console.log('📦 Object stores in database:', Array.from(db.objectStoreNames));
+    
+    // Kiểm tra health store
+    if (!db.objectStoreNames.contains("health")) {
+        console.error('❌ Health store not found!');
+        // Thử tạo lại bằng cách tăng version
+        try {
+            const currentVersion = db.version;
+            const newVersion = currentVersion + 1;
+            db.close();
+            
+            const newRequest = indexedDB.open("FamilyFinancePWA", newVersion);
+            newRequest.onupgradeneeded = function(e) {
+                const newDb = e.target.result;
+                if (!newDb.objectStoreNames.contains("health")) {
+                    newDb.createObjectStore("health", { keyPath: "id", autoIncrement: true });
+                    console.log('✅ Created health store on version ' + newVersion);
+                }
+                if (!newDb.objectStoreNames.contains("diary")) {
+                    newDb.createObjectStore("diary", { keyPath: "id", autoIncrement: true });
+                    console.log('✅ Created diary store on version ' + newVersion);
+                }
+                // Đảm bảo các store khác cũng tồn tại
+                if (!newDb.objectStoreNames.contains("transactions")) {
+                    newDb.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+                }
+                if (!newDb.objectStoreNames.contains("settings")) {
+                    newDb.createObjectStore("settings", { keyPath: "key" });
+                }
+                if (!newDb.objectStoreNames.contains("reminders")) {
+                    newDb.createObjectStore("reminders", { keyPath: "id", autoIncrement: true });
+                }
+            };
+            newRequest.onsuccess = function(e) {
+                db = e.target.result;
+                console.log('✅ Reopened database with health store, version:', db.version);
+                continueLoadSettings();
+            };
+            newRequest.onerror = function(e) {
+                console.error('❌ Failed to reopen database:', e.target.error);
+                // Fallback: load bình thường
+                continueLoadSettings();
+            };
+            return;
+        } catch(err) {
+            console.error('❌ Cannot recreate stores:', err);
+            continueLoadSettings();
         }
-
-        const lastSync = results.find(item => item.key === "last_sync_time");
-        const statusEl = document.getElementById("sync-status");
-        if (lastSync && statusEl) {
-            statusEl.innerHTML = `Last sync: ${lastSync.value}`;
-        }
-
-        loadTheme();
-        initFormOptions();
-        renderChartsAndStats();
-        generateRemindersInterface();
-        renderDiaryHistory();
-        updateSummaryTotals();
-
-        initAppConfig().then(() => {
-            updateAppInfo();
-        });
-    };
-
-    request.onerror = function(e) {
-        console.error("Lỗi load settings:", e.target.error);
-        loadTheme();
-        initFormOptions();
-        renderChartsAndStats();
-        generateRemindersInterface();
-        renderDiaryHistory();
-        updateSummaryTotals();
-        initAppConfig().then(() => {
-            updateAppInfo();
-        });
-    };
+    }
+    
+    // Nếu health store tồn tại, tiếp tục load
+    continueLoadSettings();
 } // end function loadInitialSettings
+
+// Hàm tiếp tục load settings sau khi đã có db
+function continueLoadSettings() {
+    if (!db) {
+        console.error('❌ continueLoadSettings: Database not available');
+        // Thử load lại sau 1 giây
+        setTimeout(() => {
+            if (db) {
+                continueLoadSettings();
+            } else {
+                console.error('❌ Still no database after retry');
+            }
+        }, 1000);
+        return;
+    }
+    
+    // Kiểm tra settings store
+    if (!db.objectStoreNames.contains("settings")) {
+        console.error('❌ Settings store not found!');
+        // Tạo settings store
+        try {
+            const currentVersion = db.version;
+            const newVersion = currentVersion + 1;
+            db.close();
+            
+            const newRequest = indexedDB.open("FamilyFinancePWA", newVersion);
+            newRequest.onupgradeneeded = function(e) {
+                const newDb = e.target.result;
+                if (!newDb.objectStoreNames.contains("settings")) {
+                    newDb.createObjectStore("settings", { keyPath: "key" });
+                    console.log('✅ Created settings store on version ' + newVersion);
+                }
+            };
+            newRequest.onsuccess = function(e) {
+                db = e.target.result;
+                console.log('✅ Reopened with settings store');
+                // Gọi lại chính nó
+                continueLoadSettings();
+            };
+            newRequest.onerror = function(e) {
+                console.error('❌ Failed to create settings store:', e.target.error);
+                // Vẫn thử load với transaction fallback
+                fallbackLoadSettings();
+            };
+            return;
+        } catch(err) {
+            console.error('❌ Cannot create settings store:', err);
+            fallbackLoadSettings();
+            return;
+        }
+    }
+    
+    // Load settings từ store
+    try {
+        const tx = db.transaction("settings", "readonly");
+        const store = tx.objectStore("settings");
+        const request = store.getAll();
+
+        request.onsuccess = function(e) {
+            const results = e.target.result || [];
+
+            const savedFamily = results.find(item => item.key === "family_data");
+            if (savedFamily) {
+                localFamilyData = savedFamily.value;
+            }
+
+            const lastSync = results.find(item => item.key === "last_sync_time");
+            const statusEl = document.getElementById("sync-status");
+            if (lastSync && statusEl) {
+                statusEl.innerHTML = `Last sync: ${lastSync.value}`;
+            }
+
+            loadTheme();
+            initFormOptions();
+            renderChartsAndStats();
+            generateRemindersInterface();
+            renderDiaryHistory();
+            updateSummaryTotals();
+
+            initAppConfig().then(() => {
+                updateAppInfo();
+            });
+        };
+
+        request.onerror = function(e) {
+            console.error("Lỗi load settings:", e.target.error);
+            fallbackLoadSettings();
+        };
+    } catch(err) {
+        console.error("Lỗi transaction settings:", err);
+        fallbackLoadSettings();
+    }
+} // end function continueLoadSettings
+
+// Fallback khi không thể load settings
+function fallbackLoadSettings() {
+    console.log('🔄 Using fallback load settings');
+    loadTheme();
+    initFormOptions();
+    renderChartsAndStats();
+    generateRemindersInterface();
+    renderDiaryHistory();
+    updateSummaryTotals();
+    initAppConfig().then(() => {
+        updateAppInfo();
+    });
+} // end function fallbackLoadSettings
 // end LOAD INITIAL SETTINGS
 
 // =========================================================================
@@ -2504,5 +3004,6 @@ window.addEventListener('online', () => {
     syncToGoogleSheets();
     syncRemindersToSheet();
     syncDiaryToSheet();
+    syncHealthToSheet();
 });
 // end KHỞI TẠO APP
