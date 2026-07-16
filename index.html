@@ -153,6 +153,11 @@
                 <h4 style="margin: 0 0 12px 0; color: var(--theme-color);">🏥 Health Check</h4>
                 
                 <div class="form-group">
+                    <label>Cân nặng (kg)</label>
+                    <input type="number" id="diary-weight" class="form-control" placeholder="Ví dụ: 65.5" min="0" max="300" step="0.01" inputmode="decimal">
+                    <small style="color: var(--stat-label-color); font-size: 0.75rem;">Có thể để trống</small>
+                </div>
+                <div class="form-group">
                     <label>Huyết áp (mmHg)</label>
                     <input type="text" id="diary-blood-pressure" class="form-control" placeholder="Ví dụ: 120/80" maxlength="7" inputmode="numeric">
                     <small style="color: var(--stat-label-color); font-size: 0.75rem;">Định dạng: ###/## (ví dụ: 120/80)</small>

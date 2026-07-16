@@ -1855,17 +1855,23 @@ function saveHealthOnly() {
     
     // Lấy giá trị từ form
     let datetimeVal = document.getElementById('diary-datetime').value;
+    const weight = parseFloat(document.getElementById('diary-weight').value);
     const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
     const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
     const dau = document.getElementById('diary-dau').checked;
     
     // Kiểm tra có dữ liệu health không
-    if (!bloodPressure && isNaN(heartRate) && !dau) {
-        alert('Vui lòng nhập ít nhất một thông tin health (huyết áp, nhịp tim hoặc dâu)!');
+    if (isNaN(weight) && !bloodPressure && isNaN(heartRate) && !dau) {
+        alert('Vui lòng nhập ít nhất một thông tin health (cân nặng, huyết áp, nhịp tim hoặc dâu)!');
         return;
     }
     
     // Validate
+    if (!isNaN(weight) && (weight <= 0 || weight > 300)) {
+        alert('Vui lòng nhập cân nặng hợp lệ (0-300 kg)!');
+        return;
+    }
+    
     if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
         alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
         return;
@@ -1904,6 +1910,7 @@ function saveHealthOnly() {
     
     const healthEntry = {
         datetime: healthDateTime,
+        weight: isNaN(weight) ? null : weight,
         bloodPressure: bloodPressure || '',
         heartRate: heartRate || 0,
         dau: dau || false,
@@ -1922,6 +1929,7 @@ function saveHealthOnly() {
         console.log('✅ Đã lưu health check vào IndexedDB với id:', e.target.result);
         alert("Đã lưu health check cục bộ!");
         // Reset chỉ các field health
+        document.getElementById('diary-weight').value = '';
         document.getElementById('diary-blood-pressure').value = '';
         document.getElementById('diary-heart-rate').value = '';
         document.getElementById('diary-dau').checked = false;
@@ -1979,6 +1987,7 @@ function syncHealthToSheet() {
                 action: 'syncHealth',
                 data: unsynced.map(t => ({
                     datetime: t.datetime,
+                    weight: (t.weight === null || t.weight === undefined || isNaN(t.weight)) ? '' : t.weight,
                     bloodPressure: t.bloodPressure,
                     heartRate: t.heartRate,
                     dau: t.dau,
@@ -2034,6 +2043,7 @@ function saveDiaryEntry(event) {
     let detail = document.getElementById('diary-detail').value.trim();
     
     // Lấy giá trị Health Check
+    const weight = parseFloat(document.getElementById('diary-weight').value);
     const bloodPressure = document.getElementById('diary-blood-pressure').value.trim();
     const heartRate = parseInt(document.getElementById('diary-heart-rate').value);
     const dau = document.getElementById('diary-dau').checked;
@@ -2062,10 +2072,16 @@ function saveDiaryEntry(event) {
     console.log('📅 Datetime:', formattedDateTime);
     
     // Kiểm tra có dữ liệu health không
-    const hasHealthData = bloodPressure || !isNaN(heartRate) || dau;
+    const hasHealthData = !isNaN(weight) || bloodPressure || !isNaN(heartRate) || dau;
     
     // Validate health nếu có dữ liệu
     if (hasHealthData) {
+        // Validate cân nặng (nếu có nhập)
+        if (!isNaN(weight) && (weight <= 0 || weight > 300)) {
+            alert('Vui lòng nhập cân nặng hợp lệ (0-300 kg)!');
+            return;
+        }
+        
         // Validate huyết áp format ###/## (nếu có nhập)
         if (bloodPressure && !/^\d{2,3}\/\d{2}$/.test(bloodPressure)) {
             alert('Huyết áp không đúng định dạng! Vui lòng nhập theo dạng ###/## (ví dụ: 120/80)');
@@ -2085,6 +2101,7 @@ function saveDiaryEntry(event) {
         place: finalPlace,
         detail: detail || '',
         // Lưu health data vào diary để hiển thị (nếu có)
+        weight: isNaN(weight) ? null : weight,
         bloodPressure: bloodPressure || '',
         heartRate: heartRate || 0,
         dau: dau || false,
@@ -2109,12 +2126,13 @@ function saveDiaryEntry(event) {
         const diaryId = e.target.result;
         console.log('✅ Đã lưu diary vào IndexedDB với id:', diaryId);
         
-        // CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH
-        if (hasHealthData && bloodPressure) {
+        // CHỈ LƯU HEALTH KHI CÓ DỮ LIỆU HEALTH (cân nặng, huyết áp, nhịp tim hoặc dâu)
+        if (hasHealthData) {
             const healthDateTime = formatHealthDateTime(date);
             
             const healthEntry = {
                 datetime: healthDateTime,
+                weight: isNaN(weight) ? null : weight,
                 bloodPressure: bloodPressure || '',
                 heartRate: heartRate || 0,
                 dau: dau || false,
@@ -2194,10 +2212,11 @@ function renderDiaryHistory() {
         sorted.slice(0, 50).forEach(entry => {
             // Tạo health info nếu có
             let healthInfo = '';
-            if (entry.bloodPressure || entry.heartRate || entry.dau !== undefined) {
+            if (entry.weight || entry.bloodPressure || entry.heartRate || entry.dau !== undefined) {
                 const dauText = entry.dau ? '✅' : '';
                 healthInfo = `<span style="font-size:0.75rem; color:var(--stat-label-color);">
-                    ${entry.bloodPressure ? '🩸' + entry.bloodPressure : ''}
+                    ${entry.weight ? '⚖️' + entry.weight + 'kg' : ''}
+                    ${entry.bloodPressure ? ' 🩸' + entry.bloodPressure : ''}
                     ${entry.heartRate ? ' 💓' + entry.heartRate : ''}
                     ${dauText ? ' 🌸' + dauText : ''}
                 </span>`;
